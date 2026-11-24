@@ -10,10 +10,23 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_24_174215) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_215334) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "vector"
+
+  create_table "chunks", force: :cascade do |t|
+    t.bigint "post_id", null: false
+    t.integer "position", null: false
+    t.text "content", null: false
+    t.string "content_digest", null: false
+    t.vector "embedding", limit: 768
+    t.integer "retrievals_count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["embedding"], name: "index_chunks_on_embedding", opclass: :vector_cosine_ops, using: :hnsw
+    t.index ["post_id", "position"], name: "index_chunks_on_post_id_and_position", unique: true
+  end
 
   create_table "posts", force: :cascade do |t|
     t.string "source", null: false
@@ -29,4 +42,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_174215) do
     t.index ["posted_at"], name: "index_posts_on_posted_at"
     t.index ["source", "source_id"], name: "index_posts_on_source_and_source_id", unique: true
   end
+
+  add_foreign_key "chunks", "posts", on_delete: :cascade
 end
