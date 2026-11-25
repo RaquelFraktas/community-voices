@@ -6,7 +6,7 @@ module ReportsHelper
   def report_status_badge(report)
     return tag.span("not generated", class: "badge") unless report
 
-    tag.span(report.status, class: "badge badge--#{report.status}")
+    tag.span(report.displayed_status, class: "badge badge--#{report.displayed_status}")
   end
 
   def variant_title(variant)

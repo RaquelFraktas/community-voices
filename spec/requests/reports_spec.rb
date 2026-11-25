@@ -98,13 +98,66 @@ RSpec.describe "Reports", type: :request do
       end
     end
 
-    it "shows why a report failed" do
-      Report.create!(week_of: week.starts_on, variant: :rag, status: :failed,
-                     error_message: "Llm::UnavailableError: Start it with: ollama serve")
+    it "shows why a report failed, with a retry button" do
+      report = Report.create!(week_of: week.starts_on, variant: :rag, status: :failed,
+                              error_message: "Llm::UnavailableError: Start it with: ollama serve")
 
       get compare_reports_path(week_of: "2026-11-16")
 
-      expect(response.body).to include("failed", "Start it with: ollama serve")
+      expect(response.body).to include("failed", "Start it with: ollama serve", report_retry_path(report), "Retry")
+    end
+
+    context "when generation was abandoned, e.g. by a server restart" do
+      let!(:stuck) do
+        Report.create!(week_of: week.starts_on, variant: :rag, status: :generating, updated_at: 11.minutes.ago)
+      end
+
+      before { complete_report(:baseline, body: "## Summary\nDone.") }
+
+      it "shows the stuck report as failed with a retry button, and stops refreshing" do
+        get compare_reports_path(week_of: "2026-11-16")
+
+        expect(response.body).to include("badge--failed", "Timed out", report_retry_path(stuck))
+        expect(response.body).not_to include('http-equiv="refresh"', "badge--generating")
+      end
+
+      it "lets the week be generated again from the home page" do
+        post_in_week
+
+        get root_path
+
+        expect(response.body).to include("badge--failed")
+        expect(response.body).not_to match(/<button[^>]*disabled[^>]*>Generate reports/)
+      end
+    end
+  end
+
+  describe "POST /reports/:id/retry" do
+    include ActiveJob::TestHelper
+
+    it "requeues a timed-out report and returns to the comparison, which refreshes again" do
+      stuck = Report.create!(week_of: week.starts_on, variant: :rag, status: :generating, updated_at: 11.minutes.ago)
+
+      expect { post report_retry_path(stuck) }.to have_enqueued_job(GenerateReportJob).with(stuck.id)
+
+      expect(stuck.reload).to be_pending
+      expect(response).to redirect_to(compare_reports_path(week_of: "2026-11-16"))
+      follow_redirect!
+      expect(response.body).to include('http-equiv="refresh"')
+    end
+
+    it "requeues a failed report" do
+      failed = Report.create!(week_of: week.starts_on, variant: :baseline, status: :failed, error_message: "boom")
+
+      expect { post report_retry_path(failed) }.to have_enqueued_job(GenerateReportJob).with(failed.id)
+      expect(failed.reload).to have_attributes(status: "pending", error_message: nil)
+    end
+
+    it "leaves a report that is still running alone" do
+      running = Report.create!(week_of: week.starts_on, variant: :rag, status: :generating)
+
+      expect { post report_retry_path(running) }.not_to have_enqueued_job(GenerateReportJob)
+      expect(running.reload).to be_generating
     end
 
     it "offers to generate reports for a week without any" do

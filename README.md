@@ -110,7 +110,9 @@ In the browser, run `bin/dev` and open <http://localhost:3000>. The home page li
 itself until both are done. You can also open a comparison directly at `/reports/compare?week_of=2026-11-16`.
 
 Weeks run Monday to Sunday. In development, jobs run in the web server's process (Active Job's default
-`:async` adapter), so restarting the server abandons reports that are still generating. Generate them again.
+`:async` adapter), so restarting the server abandons reports that are still generating. A report still
+pending or generating after 10 minutes (`Report::GENERATION_TIMEOUT`) is shown as failed with a **Retry**
+button, and the page stops refreshing.
 
 ## Running the tests
 

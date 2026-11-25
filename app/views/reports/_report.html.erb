@@ -10,8 +10,9 @@
 
   <% if report&.complete? %>
     <div class="markdown"><%= report_body_html(report, citation_urls) %></div>
-  <% elsif report&.failed? %>
-    <p class="error"><%= report.error_message %></p>
+  <% elsif report&.retryable? %>
+    <p class="error"><%= report.failure_message %></p>
+    <%= button_to "Retry", report_retry_path(report), form: { data: { turbo: false } } %>
   <% elsif report %>
     <p class="note">Waiting for the model…</p>
   <% end %>

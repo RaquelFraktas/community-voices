@@ -36,6 +36,58 @@ RSpec.describe Report do
     end
   end
 
+  describe "timing out" do
+    include ActiveJob::TestHelper
+
+    def report_last_touched(minutes_ago, status:)
+      described_class.create!(week_of: week.starts_on, variant: :rag, status: status,
+                              updated_at: minutes_ago.minutes.ago)
+    end
+
+    %w[pending generating].each do |status|
+      it "treats a report #{status} for longer than the timeout as failed" do
+        report = report_last_touched(11, status: status)
+
+        expect(report).to be_timed_out
+        expect(report).not_to be_in_progress
+        expect(report).to be_retryable
+        expect(report.displayed_status).to eq("failed")
+        expect(report.failure_message).to include("Timed out", "still #{status}", "10 minutes", "server restarted")
+      end
+
+      it "keeps a report #{status} within the timeout in progress" do
+        report = report_last_touched(9, status: status)
+
+        expect(report).not_to be_timed_out
+        expect(report).to be_in_progress
+        expect(report.displayed_status).to eq(status)
+      end
+    end
+
+    it "never times out a finished report" do
+      expect(report_last_touched(60, status: :complete)).not_to be_timed_out
+      expect(report_last_touched(60, status: :failed)).not_to be_timed_out
+    end
+
+    it "shows a real failure's own error message" do
+      report = described_class.create!(week_of: week.starts_on, variant: :rag, status: :failed, error_message: "boom")
+
+      expect(report.failure_message).to eq("boom")
+    end
+
+    it "can be retried, which resets it to pending and enqueues the job again" do
+      report = report_last_touched(11, status: :generating)
+
+      expect { report.retry_later }.to have_enqueued_job(GenerateReportJob).with(report.id)
+      expect(report.reload).to have_attributes(status: "pending", error_message: nil)
+      expect(report).to be_in_progress
+    end
+
+    it "is not retryable once complete" do
+      expect(report_last_touched(60, status: :complete)).not_to be_retryable
+    end
+  end
+
   it "is in progress while pending or generating" do
     report = described_class.new(week_of: week.starts_on, variant: :rag)
 

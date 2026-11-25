@@ -7,5 +7,6 @@ Rails.application.routes.draw do
 
   resources :reports, only: :create do
     get :compare, on: :collection
+    resource :retry, only: :create, controller: "report_retries"
   end
 end
