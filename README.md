@@ -9,6 +9,9 @@ metrics, so you can see what retrieval adds.
 Everything runs locally and costs nothing: the forum's public JSON API needs no key, and the models run on your
 machine with [Ollama](https://ollama.com).
 
+It was built with Claude Code, one prompt per milestone. [PROMPTS.md](PROMPTS.md) has the prompts and the changes
+made after them.
+
 ## Quickstart
 
 You need Ruby 3.4 (see `.ruby-version`) and Docker.
@@ -96,27 +99,29 @@ fixes it.
 
 ## How it maps to the challenge
 
-**1. Collect what the community is saying.** `Ingest::DiscourseFetcher` pages through the forum's public JSON API
-and collects every post in the time window. `Ingest::PostImporter` upserts them, so reruns never duplicate.
-Rake: `ingest:discourse[days]`. The rest of the app only sees the `Ingest::Fetcher` interface, so another source
-plugs in without touching it.
+**The community.** The [Ruby on Rails forum](https://discuss.rubyonrails.org); see
+[Decisions and tradeoffs](#decisions-and-tradeoffs) for why not Reddit.
 
-**2. Summarize the past week.** Each document has a Summary, Top discussions and Recurring themes, written by
-`Reports::RagGenerator` from the shared prompt `app/prompts/community_voices.md.erb`. Page: the comparison.
-Rake: `reports:generate[week_of]`.
+**2. The Community Voices Document.** A web page per week with a Summary, Top discussions, Recurring themes and
+Predictions for next week, based on which themes are rising or new. Citations link to the source posts. Page: the
+comparison.
 
-**3. Predict what comes next.** Posts are grouped into themes (`Themes::Clusterer`, `Themes::LlmLabeler`), and
-`Themes::TrendAnalyzer` marks each theme as new, rising, steady or fading. The RAG prompt gets that trend table
-and must base its Predictions for next week on rising and new themes, citing the evidence. Pages: the embedding
-map and its legend. Rake: `themes:build[week_of]`.
+**3. RAG.**
+- **a.** Chunk embeddings live in a pgvector column in Postgres with an HNSW index. The theme retriever gives the
+  prompt up to 16 excerpts from this week's themes.
+- **b.** The embedding map (`/embeddings`) flattens them to 2D with PCA, colored by theme.
+- **c.** Every retrieval is recorded; `/retrievals/stats` ranks the most-retrieved chunks, posts and themes, and
+  the map sizes points by retrieval count.
 
-**4. Compare with and without RAG.** Both versions come from the same template, with the same instructions and
-dates. Only the RAG version gets retrieved excerpts and trends. `Reports::ComparisonMetrics` scores them: distinct
-posts cited, valid and invalid citations, real thread titles mentioned, length and time. Page: the comparison.
+**4. Automated ingestion.** `WeeklyPipelineJob` runs every Monday (fetch, chunk, embed, themes, reports) and is
+safe to rerun.
+- **a.** It reads the forum's public JSON API rather than crawling HTML, as a fixed pipeline rather than an LLM
+  agent, so it is predictable and testable offline.
+- **b.** Time-windowed fetching, filters, chunk caps, digest-based skipping and capped retrieval; see
+  [Handling large amounts of data](#decisions-and-tradeoffs).
 
-**5. Handle large amounts of data.** Chunk caps per post, digest-based skipping, batched embedding, capped
-retrieval and a time-windowed vector index keep work proportional to new content. See
-[Decisions and tradeoffs](#decisions-and-tradeoffs).
+**5. A/B test.** Each week gets a RAG and a no-context baseline from the same model and instructions, shown side
+by side with metrics. See [A/B findings](#ab-findings).
 
 ## Architecture
 
@@ -152,25 +157,28 @@ From the seeded reports (`llama3.2` on a MacBook, default settings):
 | --- | --- | --- | --- | --- |
 | Nov 16 – 22 | themes | 7 / 0 | 0 / 0 | 4 of 8 / 0 of 8 |
 | Nov 9 – 15 | themes | 8 / 0 | 1 / 0 | 5 of 9 / 0 of 9 |
+| Nov 2 – 8 | themes | 3 / 0 | 0 / 0 | 3 of 7 / 0 of 7 |
+| Oct 26 – Nov 1 | themes | 3 / 0 | 0 / 0 | 3 of 8 / 0 of 8 |
 | Oct 12 – 18 | facets (Milestone 3) | 0 / 0 | 0 / 0 | 3 of 5 / 0 of 5 |
 
 Observations:
 
 - Without retrieval, the model does not know the week happened. Every baseline describes a plausible but generic
-  forum ("best practices for testing and debugging") and invents news: an "upcoming Rails 7.2 release" and a
-  "new `concurrent` feature" in Rails 7.0, while the forum was discussing Rails 8.1. None of the three baselines
+  forum ("best practices for testing and debugging") and invents news: a "new `concurrent` feature" in Rails 7.0
+  and a "new `application` DSL in Rails 7", while the forum was discussing Rails 8.1. None of the five baselines
   mentions a single real thread title.
-- With retrieval, the documents name the real threads of the week, and with the theme retriever they cite 7 to 8
+- With retrieval, the documents name the real threads of the week, and with the theme retriever they cite 3 to 8
   different posts. Their predictions follow the themes the trend table marks as new or rising.
 - The baselines never cite anything, so the "citations to nonexistent sources" check rarely fires. The one invalid
   citation came from the RAG side.
 - `llama3.2` (3B parameters) follows citation rules unreliably. It sometimes stacks many citations on one
-  sentence, which is why each run of citations counts for at most three sources, and the October report ignored
-  the rule entirely and cited nothing, although it does name real threads.
-- Retrieval reduces invention but does not remove it: the October RAG report calls Ractor "a new concurrency
-  feature in Rails", though Ractor is part of Ruby.
-- RAG takes about 1.5 times as long, almost all of it reading the longer prompt. Retrieval itself takes under a
-  second.
+  sentence, which is why each run of citations counts for at most three sources. The Oct 12 report, regenerated
+  with the current prompt and its three-citation cap, still ignores the rule and cites nothing, although it names
+  real threads and stays close to its sources.
+- Output varies between runs: an earlier Oct 12 RAG report called Ractor a Rails feature (it is part of Ruby);
+  the regenerated one gets it right.
+- RAG usually takes about 1.5 times as long, almost all of it reading the longer prompt; retrieval takes under a
+  second. Times vary with load: two RAG reports took 8 to 15 minutes.
 
 <!-- YOUR NOTES: add your own observations from the demo here. -->
 **My notes:** _(to be added)_
@@ -207,12 +215,14 @@ common.
 
 ## Limitations and future work
 
-- **More sources.** A Reddit fetcher, through a headless browser or an approved API app, would plug in through the
-  existing `Ingest::Fetcher` interface.
+- **More sources.** A Reddit fetcher, through a headless browser or an approved API app, would only need a `fetch`
+  method returning `Ingest::FetchedPost`s, like `Ingest::DiscourseFetcher`.
 - **A hosted model option.** A larger model would write better and follow citation rules more reliably; with
   `ruby_llm` this is mostly configuration.
 - **Better theme labels.** The LLM labeler reads only the five most central chunks of each theme, and the 3B model
   occasionally picks a narrow name for a broad theme.
+- **Data retention.** Nothing prunes data older than the six-week window, and a very busy week is embedded in
+  full; only the prompt is capped.
 - **Ctrl-C noise.** Stopping `bin/dev` prints a `ThreadError ... can't be called from trap context` trace after
   Solid Queue has already shut down cleanly. It comes from Rails' logging during Puma's shutdown and does not
   affect jobs.

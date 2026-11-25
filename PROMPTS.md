@@ -1,21 +1,23 @@
-# Prompting
-This app was generated with prompts broken up in 5 different Milestones.
+# Prompts
+This app was built with Claude Code, one prompt per milestone, five in total. From Milestone 3 on, each prompt
+starts with fixes from my review of the previous milestone. Shorter follow-up requests (bug reports and questions)
+are not included here; the changes they led to after the last milestone are listed at the end.
 
-#
+## Milestone 1 prompt
 I'm building a take-home coding challenge called "Community Voices" in Rails. Help me build it step by step. Do ONLY Milestone 1 below, then stop so I can review.
 
-## The challenge (summary)
+### The challenge (summary)
 A web app that generates a "Community Voices Document": what an online community discussed in the past week, and a prediction of what it will discuss next week. It must use RAG (pgvector), ingest the community's posts automatically, and include an A/B comparison of the document generated with RAG vs. without RAG. Reviewers will git clone the repo, follow the README, and run it locally.
 
 The community is the Ruby on Rails Discourse forum: https://discuss.rubyonrails.org (public JSON API, no auth).
 
-## Hard constraints
+### Hard constraints
 - Zero cost. No paid APIs. LLM and embeddings will run locally via Ollama (`nomic-embed-text` for embeddings, 768 dims; `llama3.2` for chat), called through the `ruby_llm` gem. No AI code in Milestone 1, though.
 - Postgres with pgvector, run via docker-compose (`pgvector/pgvector:pg17` image) — the database only; Rails runs natively.
 - Rails 8, RSpec, WebMock. Faraday for HTTP.
 - The reviewers value: self-documenting code, unit tests, compact functions, and Uncle Bob's Clean Code. Keep methods short, use intention-revealing names, put no logic in controllers, and give each service object a single responsibility. Avoid comments that restate the code.
 
-## Milestone 1: ingest one week of Discourse topics into Postgres
+### Milestone 1: ingest one week of Discourse topics into Postgres
 1. `rails new community_voices -d postgresql -T`, add docker-compose.yml for pgvector, add the `neighbor`, `ruby_llm`, `faraday`, `rspec-rails`, and `webmock` gems, enable the vector extension, and set database.yml to read from ENV (defaulting to localhost / postgres / postgres).
 2. `Post` model: source (string, e.g. "discourse"), source_id, title, body (plain text), author, url, posted_at, reply_count. Unique index on [source, source_id].
 3. `Ingest::DiscourseClient`: thin HTTP wrapper with `latest(page:)` → GET /latest.json?page=N and `topic(id:)` → GET /t/{id}.json. Set a descriptive User-Agent and sleep briefly between requests.
@@ -29,10 +31,10 @@ Design for later: the fetcher should be one implementation of a fetcher interfac
 
 Work in small steps, run the test suite after each one, and show me the actual ingested row counts at the end. Don't start chunking, embeddings, or report generation yet.
 
-#
-Milestone 1 is done: Discourse topics are ingested into `posts`. Read the existing code, CLAUDE.md, and README first, and follow the conventions already in place. Now do ONLY Milestone 2 below, then stop so I can review.
+## Milestone 2 prompt
+Milestone 1 is done: Discourse topics are ingested into `posts`. Read the existing code and README first, and follow the conventions already in place. Now do ONLY Milestone 2 below, then stop so I can review.
 
-## Milestone 2: chunk posts and store embeddings in pgvector
+### Milestone 2: chunk posts and store embeddings in pgvector
 
 Constraints as before: zero cost, local Ollama only (`nomic-embed-text`, 768 dims) via the `ruby_llm` gem, RSpec + WebMock, Clean Code (short methods, intention-revealing names, single-responsibility service objects, no comments that restate the code).
 
@@ -73,20 +75,20 @@ Constraints as before: zero cost, local Ollama only (`nomic-embed-text`, 768 dim
 
 Work in small steps, run the full test suite after each one, and finish by running `rake pipeline:refresh[7]` against real Ollama. Show me the counts of posts, chunks, and embedded chunks, plus the output of two `search:similar` queries ("upgrading to a new Rails version" and "deployment problems"). Don't build report generation or the visualization yet.
 
-#
-Milestones 1–2 are done: posts are ingested, chunked, and embedded in pgvector, and `Search::SimilarChunks` works. Read the existing code, CLAUDE.md, and README first, and follow the established conventions. Do ONLY Milestone 3 below, then stop so I can review.
+## Milestone 3 prompt
+Milestones 1–2 are done: posts are ingested, chunked, and embedded in pgvector, and `Search::SimilarChunks` works. Read the existing code and README first, and follow the established conventions. Do ONLY Milestone 3 below, then stop so I can review.
 
-## Milestone 3: generate the Community Voices Document, with RAG vs. without RAG
+### Milestone 3: generate the Community Voices Document, with RAG vs. without RAG
 
 Constraints as before: zero cost, local Ollama only via `ruby_llm` (chat model from ENV, default `llama3.2`), RSpec + WebMock, Clean Code (short methods, intention-revealing names, single-responsibility service objects, thin controllers, no comments that restate the code).
 
-### Part A: adjustments from the Milestone 2 review (do these first)
+#### Part A: adjustments from the Milestone 2 review (do these first)
 
 1. **Chunk replacement creates a new row.** Change `Chunking::ChunkSyncer` so that a changed chunk is deleted and a new row inserted (new id), not updated in place. Unchanged chunks keep their row, embedding, and retrievals_count. Update the syncer tests; the zero-writes-on-rerun test must still pass.
 
 2. **Time-filtered search returns full results.** In `Search::SimilarChunks`, when `since:` is given, run the query inside a transaction with `SET LOCAL hnsw.iterative_scan = relaxed_order`, so filtered searches still return N results once several weeks are ingested. Add a test that creates chunks across several weeks and asserts that a `since:`-filtered search returns N results, all from the target window.
 
-### Part B: report generation and comparison
+#### Part B: report generation and comparison
 
 3. **Chat client interface** (`Llm::` namespace, mirroring `Embeddings::`):
    - `complete(system:, user:) -> String`.
@@ -140,13 +142,13 @@ Constraints as before: zero cost, local Ollama only via `ruby_llm` (chat model f
 
 Work in small steps and run the full suite after each one. Finish by running `rake reports:generate` for the most recent week against real Ollama, and show me the metrics output and the first ~20 lines of each report. As before, end with a short "choices worth reviewing" list. Don't build clustering, trend analysis, or the embedding visualization yet.
 
-#
-Milestones 1–3 are done: ingestion, chunking, embeddings, and RAG vs. baseline report generation with a comparison page. Read the existing code, CLAUDE.md, and README first, and follow the established conventions. Do ONLY Milestone 4 below, then stop so I can review.
+## Milestone 4 prompt
+Milestones 1–3 are done: ingestion, chunking, embeddings, and RAG vs. baseline report generation with a comparison page. Read the existing code and README first, and follow the established conventions. Do ONLY Milestone 4 below, then stop so I can review.
 
 Constraints as before: zero cost, local Ollama only, RSpec + WebMock, Clean Code (short methods, intention-revealing names, single-responsibility service objects, thin controllers, no comments that restate the code).
 
-## Milestone 4
-### Part A: adjustments from the Milestone 3 review (do these first)
+### Milestone 4
+#### Part A: adjustments from the Milestone 3 review (do these first)
 
 1. **Durable jobs in development.** Switch development from `:async` to Solid Queue, with its own queue database configured in database.yml so `bin/rails db:prepare` sets it up. One command must start both the web server and the job worker (`bin/dev` with Procfile.dev, or the Solid Queue Puma plugin; pick one and explain why). Tests keep using the test adapter.
 
@@ -154,7 +156,7 @@ Constraints as before: zero cost, local Ollama only, RSpec + WebMock, Clean Code
 
 3. **Rename the metric.** Label invalid citations as "Citations to nonexistent sources" on the compare page and in the rake output. Keep a clear method name in `ComparisonMetrics`.
 
-### Part B: themes, trends, and visualization
+#### Part B: themes, trends, and visualization
 
 4. **Clustering models**:
    - `Clustering`: window_start, window_end, k, random_seed, created_at.
@@ -215,12 +217,12 @@ Work in small steps and run the full suite after each one. Finish against real d
 
 As before, end with a short "choices worth reviewing" list. Don't build the recurring weekly job or seed data yet; that's Milestone 5.
 
-#
-Milestones 1–4 are done: ingestion, chunking, embeddings, RAG vs. baseline reports, theme clustering, trends, the embedding scatter plot, and retrieval stats. Read the existing code, CLAUDE.md, and README first, and follow the established conventions. Do ONLY Milestone 5 below. It is the final milestone, so the goal is a repo that a reviewer can clone and demo with no surprises.
+## Milestone 5 prompt
+Milestones 1–4 are done: ingestion, chunking, embeddings, RAG vs. baseline reports, theme clustering, trends, the embedding scatter plot, and retrieval stats. Read the existing code and README first, and follow the established conventions. Do ONLY Milestone 5 below. It is the final milestone, so the goal is a repo that a reviewer can clone and demo with no surprises.
 
 Constraints as before: zero cost, local Ollama only, RSpec + WebMock, Clean Code (short methods, intention-revealing names, single-responsibility service objects, thin controllers, no comments that restate the code).
-## Milestone 5
-### Part A: adjustments from the Milestone 4 review (do these first)
+### Milestone 5
+#### Part A: adjustments from the Milestone 4 review (do these first)
 
 1. **Stop citation inflation.**
    - Prompt: tell the model to cite at most 3 sources per sentence, and only ones that directly support it.
@@ -231,7 +233,7 @@ Constraints as before: zero cost, local Ollama only, RSpec + WebMock, Clean Code
 
 3. **Normalize vectors before clustering.** L2-normalize embeddings before k-means and PCA, so Euclidean distance there agrees with the cosine distance used in search. Run `rake themes:build` on the last complete week before and after the change, and show me both silhouette scores and both sets of cluster sizes. Keep the change only if the clusters are at least as good; otherwise revert and tell me.
 
-### Part B: automation, seed data, and the reviewer experience
+#### Part B: automation, seed data, and the reviewer experience
 
 4. **Recurring weekly pipeline.**
    - `WeeklyPipelineJob` runs ingest → chunk sync → embed → themes build → generate both reports for the most recent complete week.
@@ -270,3 +272,21 @@ Constraints as before: zero cost, local Ollama only, RSpec + WebMock, Clean Code
 11. **Fresh-clone check.** Clone the repo into a temporary directory and follow the README Quickstart exactly as a reviewer would, using a fresh database name. Confirm the compare, embeddings, stats, and status pages all return 200 with seeded data. Report every step where the README was wrong or unclear, and fix it.
 
 Finish with: the full test count and RuboCop result, the seed file size, the before/after silhouette numbers from step 3, the fresh-clone check result, and a short "choices worth reviewing" list.
+
+## After the milestones
+
+Changes made after reviewing Milestone 5, from shorter follow-up prompts:
+
+- **Embedding map fix.** The vendored Chart.js build imported a second file that had never been downloaded, so the
+  map never drew. It was replaced with a single-file build of the same version.
+- **Echoed titles.** The baseline model sometimes repeated the prompt's title and week above its answer. The prompt
+  now asks it to start with `## Summary`, and the page leaves out anything before that heading.
+- **Oct 12 reports regenerated.** That pair predated the three-citation cap, so it was regenerated with the current
+  prompt and the facet retriever, the seed data was re-exported, and the README's A/B numbers were updated.
+- **Theme labeling outside the transaction.** The clustering is saved with TF-IDF labels first, and the LLM labels
+  are applied after the commit, so a slow or failing model can neither hold the transaction open nor undo the
+  clustering.
+- **No fetcher base class.** The `Ingest::Fetcher` interface from Milestone 1 only held a constant while Discourse
+  is the only source, so it was removed. A new source needs only a `fetch` method returning `Ingest::FetchedPost`s.
+- **No score filter.** Milestone 5 mentions score filters, but Discourse posts have no vote scores. The length and
+  hidden-post filters do that job instead.
