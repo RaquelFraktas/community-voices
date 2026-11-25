@@ -1,0 +1,56 @@
+<% content_for :title, "Retrieval stats" %>
+
+<header class="page-header">
+  <p><%= link_to "← All weeks", root_path %></p>
+  <h1>Retrieval stats</h1>
+  <p class="note">What the RAG reports have pulled into their context most often, across every report so far.</p>
+</header>
+
+<% chunks = @stats.top_chunks %>
+<% if chunks.empty? %>
+  <p class="empty">Nothing retrieved yet. Generate a week's reports first.</p>
+<% else %>
+  <h2>Most-retrieved chunks</h2>
+  <table class="stats">
+    <thead><tr><th>Post</th><th>Chunk</th><th>Retrievals</th><th>Last retrieved</th></tr></thead>
+    <tbody>
+      <% chunks.each do |row| %>
+        <tr>
+          <td><%= link_to row.post_title, row.post_url, target: "_blank", rel: "noopener" %></td>
+          <td class="snippet"><%= row.snippet %></td>
+          <td><%= row.retrievals_count %></td>
+          <td><%= row.last_retrieved_at ? l(row.last_retrieved_at, format: :short) : "—" %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <h2>Most-retrieved posts</h2>
+  <table class="stats">
+    <thead><tr><th>Post</th><th></th><th>Retrievals (all chunks)</th></tr></thead>
+    <tbody>
+      <% @stats.top_posts.each do |row| %>
+        <tr>
+          <td><%= link_to row.title, row.url, target: "_blank", rel: "noopener" %></td>
+          <td></td>
+          <td><%= row.retrievals_count %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <h2>Most-retrieved themes</h2>
+  <% themes = @stats.top_themes %>
+  <% if themes.empty? %>
+    <p class="empty">No theme-based reports yet.</p>
+  <% else %>
+    <table class="stats">
+      <thead><tr><th>Theme</th><th></th><th>Retrievals</th></tr></thead>
+      <tbody>
+        <% themes.each do |row| %>
+          <tr><td><%= row.label %></td><td></td><td><%= row.retrievals_count %></td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+<% end %>

@@ -52,7 +52,7 @@ RSpec.describe Report do
         expect(report).not_to be_in_progress
         expect(report).to be_retryable
         expect(report.displayed_status).to eq("failed")
-        expect(report.failure_message).to include("Timed out", "still #{status}", "10 minutes", "server restarted")
+        expect(report.failure_message).to include("Timed out", "still #{status}", "10 minutes", "worker stopped")
       end
 
       it "keeps a report #{status} within the timeout in progress" do
@@ -62,6 +62,25 @@ RSpec.describe Report do
         expect(report).to be_in_progress
         expect(report.displayed_status).to eq(status)
       end
+    end
+
+    context "with a custom timeout" do
+      around do |example|
+        ENV["REPORT_GENERATION_TIMEOUT_MINUTES"] = "3"
+        example.run
+      ensure
+        ENV.delete("REPORT_GENERATION_TIMEOUT_MINUTES")
+      end
+
+      it "reads the timeout in minutes from REPORT_GENERATION_TIMEOUT_MINUTES" do
+        expect(described_class.generation_timeout).to eq(3.minutes)
+        expect(report_last_touched(4, status: :generating)).to be_timed_out
+        expect(report_last_touched(2, status: :generating)).not_to be_timed_out
+      end
+    end
+
+    it "defaults to a 10 minute timeout" do
+      expect(described_class.generation_timeout).to eq(10.minutes)
     end
 
     it "never times out a finished report" do

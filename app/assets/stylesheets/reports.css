@@ -101,3 +101,26 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   max-height: 16rem;
   overflow: auto;
 }
+
+.embedding-map { margin: 1rem 0; }
+.embedding-map__canvas {
+  position: relative;
+  height: 560px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem;
+}
+
+.legend { list-style: none; padding: 0; display: grid; gap: 0.4rem; }
+.legend li { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.legend__swatch { width: 0.9rem; height: 0.9rem; border-radius: 50%; flex: none; }
+.legend__label { font-weight: 600; }
+
+.badge--trend-new, .badge--trend-rising { color: var(--ok); border-color: currentColor; }
+.badge--trend-steady { color: var(--muted); }
+.badge--trend-fading { color: var(--warn); border-color: currentColor; }
+
+.page-links { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+
+.stats td:nth-child(n+3), .stats th:nth-child(n+3) { text-align: right; font-variant-numeric: tabular-nums; }
+.stats .snippet { color: var(--muted); font-size: 0.875rem; }

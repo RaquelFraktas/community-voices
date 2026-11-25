@@ -8,24 +8,41 @@ RSpec.describe "rake reports:generate" do
 
   around { |example| travel_to(Time.zone.parse("2026-11-24T12:00:00Z")) { example.run } }
 
-  def run_task(*args)
-    expect { Rake::Task["reports:generate"].invoke(*args) }.to output.to_stdout
+  # An abort inside the task raises SystemExit, which would end the whole RSpec run instead of failing.
+  def run_task(*args, printing: anything)
+    expect { expect { Rake::Task["reports:generate"].invoke(*args) }.to output(printing).to_stdout }
+      .not_to raise_error
   end
 
-  let!(:last_week_chunk) do
-    create_chunk(post: create_post(title: "Rails 8.1.2 released", posted_at: Time.zone.parse("2026-11-18 10:00")))
+  let(:week) { Week.new(Date.new(2026, 11, 16)) }
+  let!(:week_chunks) do
+    create_themed_chunks(week: week, titles_by_group: [ "Zero-downtime migrations", "ActiveStorage CDN", "Kamal deploys" ])
   end
 
   it "generates both reports synchronously and prints the metrics" do
-    expect { Rake::Task["reports:generate"].invoke("2026-11-16") }.to output(
-      a_string_including(
-        "Generating reports for Nov 16 – Nov 22, 2026 (1 posts)...", "rag: complete", "baseline: complete",
-        "Metric", "Valid citations", "Invalid citations", "/reports/compare?week_of=2026-11-16"
-      )
-    ).to_stdout
+    run_task("2026-11-16", printing: a_string_including(
+      "Generating reports for Nov 16 – Nov 22, 2026 (12 posts, RAG context from themes)...",
+      "rag: complete", "baseline: complete", "Themes: 3 clusters from 12 chunks",
+      "Metric", "Valid citations", "Invalid citations", "/reports/compare?week_of=2026-11-16"
+    ))
 
-    expect(Report.where(week_of: Date.new(2026, 11, 16)).map(&:status)).to all(eq("complete"))
-    expect(Report.find_by!(variant: :rag).retrievals.map(&:chunk)).to eq([ last_week_chunk ])
+    expect(Report.where(week_of: week.starts_on).map(&:status)).to all(eq("complete"))
+    expect(Report.find_by!(variant: :rag).retrievals.map(&:chunk)).to all(be_in(week_chunks))
+  end
+
+  it "builds the week's themes for the RAG report when there are none yet" do
+    expect { run_task("2026-11-16") }.to change(Clustering, :count).by(1)
+
+    rag = Report.find_by!(variant: :rag)
+    expect(rag.clustering).to eq(Clustering.latest_for(week))
+    expect(rag.retrievals.map(&:query_label)).to all(be_in(rag.clustering.clusters.map(&:label)))
+    expect(Report.find_by!(variant: :baseline).clustering).to be_nil
+  end
+
+  it "reuses existing themes for the week" do
+    Themes::Builder.new.build(week)
+
+    expect { run_task("2026-11-16") }.not_to change(Clustering, :count)
   end
 
   it "defaults to the most recent complete week" do
@@ -33,7 +50,7 @@ RSpec.describe "rake reports:generate" do
 
     run_task
 
-    expect(Report.distinct.pluck(:week_of)).to eq([ Date.new(2026, 11, 16) ])
+    expect(Report.distinct.pluck(:week_of)).to eq([ week.starts_on ])
   end
 
   it "stops with the error when a report fails" do

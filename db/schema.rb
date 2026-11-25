@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_24_223526) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_012328) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "vector"
@@ -26,6 +26,41 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_223526) do
     t.datetime "updated_at", null: false
     t.index ["embedding"], name: "index_chunks_on_embedding", opclass: :vector_cosine_ops, using: :hnsw
     t.index ["post_id", "position"], name: "index_chunks_on_post_id_and_position", unique: true
+  end
+
+  create_table "cluster_memberships", force: :cascade do |t|
+    t.bigint "cluster_id", null: false
+    t.bigint "chunk_id", null: false
+    t.float "distance_to_centroid", null: false
+    t.float "x"
+    t.float "y"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chunk_id"], name: "index_cluster_memberships_on_chunk_id"
+    t.index ["cluster_id", "chunk_id"], name: "index_cluster_memberships_on_cluster_id_and_chunk_id", unique: true
+  end
+
+  create_table "clusterings", force: :cascade do |t|
+    t.date "window_start", null: false
+    t.date "window_end", null: false
+    t.integer "k", null: false
+    t.integer "random_seed", null: false
+    t.float "silhouette_score"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["window_end", "created_at"], name: "index_clusterings_on_window_end_and_created_at"
+  end
+
+  create_table "clusters", force: :cascade do |t|
+    t.bigint "clustering_id", null: false
+    t.integer "position", null: false
+    t.string "label", default: "", null: false
+    t.vector "centroid", limit: 768, null: false
+    t.integer "size", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["clustering_id", "position"], name: "index_clusters_on_clustering_id_and_position", unique: true
+    t.index ["clustering_id"], name: "index_clusters_on_clustering_id"
   end
 
   create_table "posts", force: :cascade do |t|
@@ -54,6 +89,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_223526) do
     t.float "generation_seconds"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "clustering_id"
+    t.index ["clustering_id"], name: "index_reports_on_clustering_id"
     t.index ["week_of", "variant", "created_at"], name: "index_reports_on_week_of_and_variant_and_created_at"
   end
 
@@ -74,6 +111,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_223526) do
   end
 
   add_foreign_key "chunks", "posts", on_delete: :cascade
+  add_foreign_key "cluster_memberships", "chunks", on_delete: :cascade
+  add_foreign_key "cluster_memberships", "clusters", on_delete: :cascade
+  add_foreign_key "clusters", "clusterings", on_delete: :cascade
+  add_foreign_key "reports", "clusterings", on_delete: :nullify
   add_foreign_key "retrievals", "chunks", on_delete: :nullify
   add_foreign_key "retrievals", "reports", on_delete: :cascade
 end

@@ -1,0 +1,12 @@
+<% trends = clustering.trends.index_by(&:cluster_id) %>
+<ul class="legend">
+  <% clustering.clusters.each do |cluster| %>
+    <% trend = trends.fetch(cluster.id) %>
+    <li>
+      <span class="legend__swatch" style="background: <%= Themes::Palette.color_for(cluster.position) %>"></span>
+      <span class="legend__label"><%= cluster.label %></span>
+      <span class="badge badge--trend-<%= trend.classification %>"><%= trend.classification %></span>
+      <span class="note"><%= pluralize(cluster.size, "chunk") %> · weekly <%= trend.weekly_counts.values.join(", ") %></span>
+    </li>
+  <% end %>
+</ul>

@@ -9,4 +9,7 @@ Rails.application.routes.draw do
     get :compare, on: :collection
     resource :retry, only: :create, controller: "report_retries"
   end
+
+  resource :embeddings, only: :show
+  get "retrievals/stats", to: "retrieval_stats#show", as: :retrieval_stats
 end

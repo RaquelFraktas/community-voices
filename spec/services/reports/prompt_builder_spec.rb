@@ -13,7 +13,16 @@ RSpec.describe Reports::PromptBuilder do
     ]
   end
 
-  let(:rag_prompt) { builder.build(week: week, entries: entries) }
+  let(:weeks) { Array.new(3) { |i| week.starts_on - (2 - i).weeks } }
+  let(:trends) do
+    [
+      Themes::TrendAnalyzer::Trend.new(cluster_id: 1, label: "kamal · deploy · hangs", momentum: 2.4,
+                                       weekly_counts: weeks.zip([ 1, 1, 4 ]).to_h, classification: "rising"),
+      Themes::TrendAnalyzer::Trend.new(cluster_id: 2, label: "activestorage · cdn", momentum: nil,
+                                       weekly_counts: weeks.zip([ 0, 0, 2 ]).to_h, classification: "new")
+    ]
+  end
+  let(:rag_prompt) { builder.build(week: week, entries: entries, trends: trends) }
   let(:baseline_prompt) { builder.build(week: week, entries: []) }
 
   it "asks for the four sections, with reasoning for each prediction" do
@@ -36,19 +45,41 @@ RSpec.describe Reports::PromptBuilder do
 
   it "asks the RAG variant to cite its sources as [n], last, so the rule is fresh when the model starts writing" do
     expect(rag_prompt.user.strip).to end_with("Only use numbers from 1 to 2.")
-    expect(rag_prompt.user).to include("Citation rule", "[1][4]")
+    expect(rag_prompt.user).to include("Citation rule", "[1][4]", "Each prediction must cite the excerpts")
   end
 
-  it "gives the baseline no context and no citation instructions" do
-    expect(baseline_prompt.user).to include("No forum excerpts are provided")
-    expect(baseline_prompt.user).not_to include("Rails 8.1.2 is out", "[1]", "Citation")
+  it "lists each theme's weekly counts and trend for the RAG variant, after the sources and before the citation rule" do
+    user = rag_prompt.user
+
+    expect(user).to include(
+      "## Theme trends", "from Nov 2 to Nov 16 (this week last)",
+      "- kamal · deploy · hangs: 1, 1, 4 (rising)", "- activestorage · cdn: 0, 0, 2 (new)"
+    )
+    expect(user.index("## Sources")).to be < user.index("## Theme trends")
+    expect(user.index("## Theme trends")).to be < user.index("Citation rule")
   end
 
-  it "differs between the variants only in the sources section at the end" do
+  it "leaves the trends section out when the retriever returned no trends" do
+    expect(builder.build(week: week, entries: entries).user).not_to include("## Theme trends")
+  end
+
+  it "gives the baseline no context, no trends and no citation instructions" do
+    expect(baseline_prompt.user).to include("No forum excerpts or theme trends are provided")
+    expect(baseline_prompt.user).not_to include("Rails 8.1.2 is out", "[1]", "Citation", "## Theme trends", "kamal")
+  end
+
+  it "asks both variants to base predictions on rising and new themes" do
+    [ rag_prompt, baseline_prompt ].each do |prompt|
+      expect(prompt.user).to include("Base each prediction\non themes that are rising or new this week")
+    end
+  end
+
+  it "shares every instruction word for word, differing only in the sources and trends at the end" do
     before_sources = ->(prompt) { prompt.user.split("## Sources").first }
 
     expect(before_sources.call(rag_prompt)).to eq(before_sources.call(baseline_prompt))
     expect(before_sources.call(rag_prompt)).to include("## Instructions", "## Predictions for next week")
+    expect(before_sources.call(rag_prompt)).not_to include("## Theme trends")
     expect(rag_prompt.system).to eq(baseline_prompt.system)
   end
 

@@ -45,6 +45,9 @@ gem "neighbor"
 gem "nokogiri"
 gem "redcarpet", "~> 3.6"
 gem "ruby_llm"
+gem "rumale-clustering", "~> 2.2"
+gem "rumale-decomposition", "~> 2.2"
+gem "rumale-evaluation_measure", "~> 2.2"
 
 group :development, :test do
   gem "rspec-rails"

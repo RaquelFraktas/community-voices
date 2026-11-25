@@ -1,6 +1,6 @@
 module Reports
   class RagGenerator < Generator
-    def initialize(retriever: ContextRetriever.new, **)
+    def initialize(retriever: Retriever.configured, **)
       super(**)
       @retriever = retriever
     end

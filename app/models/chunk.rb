@@ -1,6 +1,7 @@
 class Chunk < ApplicationRecord
   belongs_to :post
   has_many :retrievals, dependent: nil
+  has_many :cluster_memberships, dependent: nil
 
   has_neighbors :embedding, dimensions: Embeddings::DIMENSIONS
 

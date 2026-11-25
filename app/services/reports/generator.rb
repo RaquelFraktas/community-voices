@@ -33,7 +33,7 @@ module Reports
     end
 
     def prompt_for(report, context)
-      @prompt_builder.build(week: report.week, entries: context.entries).tap do |prompt|
+      @prompt_builder.build(week: report.week, entries: context.entries, trends: context.trends).tap do |prompt|
         report.update!(prompt: prompt.to_s)
       end
     end
@@ -41,7 +41,7 @@ module Reports
     def complete(report, body, context, seconds)
       Report.transaction(requires_new: true) do
         Retrieval.create!(context.retrieval_attributes.map { |attributes| attributes.merge(report_id: report.id) })
-        report.update!(status: :complete, body: body, generation_seconds: seconds)
+        report.update!(status: :complete, body: body, generation_seconds: seconds, clustering: context.clustering)
       end
       report
     end

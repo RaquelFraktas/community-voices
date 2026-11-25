@@ -7,7 +7,11 @@
 <% end %>
 
 <header class="page-header">
-  <p><%= link_to "← All weeks", root_path %></p>
+  <p class="page-links">
+    <%= link_to "← All weeks", root_path %>
+    <%= link_to "Embedding map", embeddings_path(week_of: @comparison.week) %>
+    <%= link_to "Retrieval stats", retrieval_stats_path %>
+  </p>
   <h1>Community Voices: <%= @comparison.week.label %></h1>
   <% if @comparison.in_progress? %>
     <p class="note">Generating… this page refreshes every 5 seconds.</p>

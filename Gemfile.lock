@@ -96,6 +96,7 @@ GEM
       bigdecimal
       rexml
     crass (1.0.8)
+    csv (3.3.7)
     date (3.6.0)
     debug (1.11.1)
       irb (~> 1.10)
@@ -207,6 +208,7 @@ GEM
       racc (~> 1.4)
     nokogiri (1.19.7-x86_64-linux-gnu)
       racc (~> 1.4)
+    numo-narray-alt (0.11.3)
     ostruct (0.6.3)
     parallel (2.3.0)
     parser (3.3.14.0)
@@ -346,6 +348,18 @@ GEM
       marcel (>= 1.0, < 3)
       schematist (~> 1.1)
       zeitwerk (~> 2)
+    rumale-clustering (2.2.0)
+      numo-narray-alt (>= 0.9.10, < 0.12.0)
+      rumale-core (~> 2.2.0)
+    rumale-core (2.2.0)
+      csv (>= 3.1.9)
+      numo-narray-alt (>= 0.9.10, < 0.12.0)
+    rumale-decomposition (2.2.0)
+      numo-narray-alt (>= 0.9.10, < 0.12.0)
+      rumale-core (~> 2.2.0)
+    rumale-evaluation_measure (2.2.0)
+      numo-narray-alt (>= 0.9.10, < 0.12.0)
+      rumale-core (~> 2.2.0)
     schematist (1.1.0)
     securerandom (0.4.1)
     solid_cable (4.1.0)
@@ -428,6 +442,9 @@ DEPENDENCIES
   rspec-rails
   rubocop-rails-omakase
   ruby_llm
+  rumale-clustering (~> 2.2)
+  rumale-decomposition (~> 2.2)
+  rumale-evaluation_measure (~> 2.2)
   solid_cable
   solid_cache
   solid_queue
@@ -466,6 +483,7 @@ CHECKSUMS
   connection_pool (3.0.3) sha256=e0f8ee3ee0039396753e06e8a2dde0ef028e40f7df29e97f57da7577c489cb5e
   crack (1.0.1) sha256=ff4a10390cd31d66440b7524eb1841874db86201d5b70032028553130b6d4c7e
   crass (1.0.8) sha256=7a0145c7a2c59f8e7923b3a69ce819c444823a00a5127d805298fea13be24efe
+  csv (3.3.7) sha256=15a3f16f6628da8664d455eb634e7f22031bcf53044923caf56975109e71b9f8
   date (3.6.0) sha256=18ac945c4e24ebd93534f8eab8c2fd8c5604b3e977105b3798d62a1e8d27b580
   debug (1.11.1) sha256=2e0b0ac6119f2207a6f8ac7d4a73ca8eb4e440f64da0a3136c30343146e952b6
   diff-lcs (1.6.2) sha256=9ae0d2cba7d4df3075fe8cd8602a8604993efc0dfa934cff568969efb1909962
@@ -518,6 +536,7 @@ CHECKSUMS
   nokogiri (1.19.7) sha256=abe94507c54cb18f872777b16bdca4aad32b1abdc4c52fe843f1c80fbdf992b8
   nokogiri (1.19.7-aarch64-linux-gnu) sha256=8f5e15d299602456406e1f03a9f3456cceb33a0722811e818d2ee2214eb4c84a
   nokogiri (1.19.7-x86_64-linux-gnu) sha256=25865ccb462f714e712fdf8906fde07849cb6704a808e3d629d75baa5af5dd3b
+  numo-narray-alt (0.11.3) sha256=808c6a56a05f1bdbab8f6032a7cd1321fadc07a6b42fb2bb103fc82a353cc2c8
   ostruct (0.6.3) sha256=95a2ed4a4bd1d190784e666b47b2d3f078e4a9efda2fccf18f84ddc6538ed912
   parallel (2.3.0) sha256=f75a3e904101ce6a1ccb6b8dc800cbafd42166d83330192438dcf29395167a6f
   parser (3.3.14.0) sha256=62f8f76af7b919425ee2d811880e9dcb8011ab40bfd59970dfb583141697e58f
@@ -563,6 +582,10 @@ CHECKSUMS
   ruby-progressbar (1.13.0) sha256=80fc9c47a9b640d6834e0dc7b3c94c9df37f08cb072b7761e4a71e22cff29b33
   ruby-vips (2.3.0) sha256=e685ec02c13969912debbd98019e50492e12989282da5f37d05f5471442f5374
   ruby_llm (2.2.3) sha256=a3b1ceccebde2894ca99e8b4d00a6329604f8481c78e7236526648a744c428fd
+  rumale-clustering (2.2.0) sha256=ae80dd70905e1c0656c2503b978ff5f164730f52f5f985c3b1b250f3664ff101
+  rumale-core (2.2.0) sha256=f1381f2004e04f777638b1e9a5df3fae87039034fd3ef9fa66b7ce3b560c2de8
+  rumale-decomposition (2.2.0) sha256=275058c63a370783a5bc110343a2c75986ada901b9ff2a5a0076f84f0efff1cb
+  rumale-evaluation_measure (2.2.0) sha256=55e52bfd1024daef870efa4f3daa215abf9a554f54a87614a2d1de8cc2cce3a7
   schematist (1.1.0) sha256=905d8f0286830926e77e0d631bee325ee741c4b99640bc99735593b40ba73e7b
   securerandom (0.4.1) sha256=cc5193d414a4341b6e225f0cb4446aceca8e50d5e1888743fac16987638ea0b1
   solid_cable (4.1.0) sha256=828e3d509207b82b4f05f4e9c85f696994710679b52d511aa7f97ebd212d3226

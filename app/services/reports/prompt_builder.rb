@@ -10,11 +10,16 @@ module Reports
       end
     end
 
-    def build(week:, entries:)
-      Prompt.new(system: SYSTEM_PROMPT, user: template.result_with_hash(week: week, entries: entries))
+    def build(week:, entries:, trends: [])
+      user = template.result_with_hash(week: week, entries: entries, trends: trends, trend_weeks: trend_weeks(trends))
+      Prompt.new(system: SYSTEM_PROMPT, user: user)
     end
 
     private
+
+    def trend_weeks(trends)
+      trends.first&.weekly_counts&.keys.to_a.map { |starts_on| starts_on.strftime("%b %-d") }
+    end
 
     def template
       @template ||= ERB.new(TEMPLATE_PATH.read, trim_mode: "-")

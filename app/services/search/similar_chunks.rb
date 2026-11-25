@@ -2,8 +2,9 @@ module Search
   class SimilarChunks
     DEFAULT_LIMIT = 5
     SNIPPET_LENGTH = 100
-    # Without this, HNSW finds its nearest candidates first and filters them afterwards, so a time-filtered
-    # search can return fewer matches than asked for. relaxed_order keeps scanning until the limit is met.
+    # Without this, HNSW finds its nearest candidates first and drops the unwanted ones afterwards: rows outside
+    # a time filter, and rows deleted but not yet vacuumed (for example chunks just replaced by a re-sync). The
+    # search then returns fewer matches than asked for. relaxed_order keeps scanning until the limit is met.
     ITERATIVE_SCAN = "SET LOCAL hnsw.iterative_scan = relaxed_order".freeze
 
     Match = Data.define(:chunk, :distance) do
@@ -24,8 +25,7 @@ module Search
 
     def call(query, limit: DEFAULT_LIMIT, since: nil, before: nil)
       query_vector = @client.embed_query(query)
-      chunks = nearest_chunks(query_vector, since, before).limit(limit)
-      chunks = since || before ? with_iterative_scan { chunks.to_a } : chunks.to_a
+      chunks = with_iterative_scan { nearest_chunks(query_vector, since, before).limit(limit).to_a }
 
       chunks.map { |chunk| Match.new(chunk: chunk, distance: chunk.neighbor_distance) }.sort_by(&:distance)
     end

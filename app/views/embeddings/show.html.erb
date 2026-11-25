@@ -1,0 +1,27 @@
+<% content_for :title, "Embedding map – #{@week.label}" %>
+
+<header class="page-header">
+  <p><%= link_to "← Comparison for this week", compare_reports_path(week_of: @week) %></p>
+  <h1>Embedding map: <%= @week.label %></h1>
+</header>
+
+<% if @clustering %>
+  <p class="note">
+    Every chunk from <%= @clustering.window_start.strftime("%b %-d") %> to <%= @clustering.window_end.strftime("%b %-d, %Y") %>,
+    flattened to 2D. Bright points are from this week, faded ones from earlier weeks; bigger points were
+    retrieved more often. Click a point to open its post.
+  </p>
+
+  <div class="embedding-map" data-controller="embedding-map"
+       data-embedding-map-url-value="<%= embeddings_path(week_of: @week, format: :json) %>">
+    <p class="note" data-embedding-map-target="status">Loading…</p>
+    <div class="embedding-map__canvas"><canvas data-embedding-map-target="canvas"></canvas></div>
+  </div>
+
+  <%= render "legend", clustering: @clustering %>
+<% else %>
+  <p class="empty">
+    No themes for this week yet. Run <code>bin/rails "themes:build[<%= @week.to_param %>]"</code>, or generate
+    this week's reports, which builds them.
+  </p>
+<% end %>

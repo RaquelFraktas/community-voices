@@ -105,6 +105,24 @@ RSpec.describe Reports::Generator do
       expect(chunk.reload.retrievals_count).to eq(1)
     end
 
+    context "with the theme retriever" do
+      let(:retriever) { Reports::ThemeContextRetriever.new }
+
+      before do
+        create_themed_chunks(week: week, titles_by_group: [ "Zero-downtime migrations", "ActiveStorage CDN", "Kamal deploys" ])
+      end
+
+      it "adds the theme trends to the prompt and links the report to its clustering" do
+        report = new_report(:rag)
+        generator.generate(report)
+
+        clustering = Clustering.latest_for(week)
+        expect(chat_client.prompts.sole[:user]).to include("## Theme trends", *clustering.clusters.map(&:label))
+        expect(report.reload.clustering).to eq(clustering)
+        expect(report.retrievals.map(&:query_label)).to all(be_in(report.clustering.clusters.map(&:label)))
+      end
+    end
+
     it "saves the retrievals in the same transaction as the completed report" do
       report = new_report(:rag)
       allow(report).to receive(:update!).and_call_original
@@ -127,7 +145,7 @@ RSpec.describe Reports::Generator do
       generator.generate(new_report(:baseline))
 
       prompt = chat_client.prompts.sole[:user]
-      expect(prompt).to include("No forum excerpts are provided", week.label)
+      expect(prompt).to include("No forum excerpts or theme trends are provided", week.label)
       expect(prompt).not_to include("Rails 8.1.2 is out")
     end
 
