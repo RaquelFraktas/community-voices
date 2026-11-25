@@ -42,7 +42,7 @@ The app uses two models: `nomic-embed-text` for embeddings and `llama3.2` for wr
 **Native (recommended on a Mac).** Ollama uses the Apple GPU, which is several times faster than Docker.
 
 ```sh
-brew install ollama            # or download it from https://ollama.com
+brew install --cask ollama            # or download it from https://ollama.com ; using `cask` is for a faster install instead of spending hours getting it from source code
 ollama pull nomic-embed-text   # about 275 MB
 ollama pull llama3.2           # about 2 GB
 OLLAMA_CONTEXT_LENGTH=8192 ollama serve
