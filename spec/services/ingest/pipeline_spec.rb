@@ -9,7 +9,7 @@ RSpec.describe Ingest::Pipeline do
       )
     end
   end
-  let(:fetcher) { instance_double(Ingest::Fetcher, fetch: fetched_posts) }
+  let(:fetcher) { instance_double(Ingest::DiscourseFetcher, fetch: fetched_posts) }
 
   it "imports whatever the fetcher returns" do
     described_class.new(fetcher: fetcher).run

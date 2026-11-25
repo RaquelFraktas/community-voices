@@ -1,7 +1,8 @@
 module Ingest
-  class DiscourseFetcher < Fetcher
+  class DiscourseFetcher
     REGULAR_POST_TYPE = 1
     MAX_POSTS_PER_REQUEST = 20
+    DEFAULT_WINDOW = 7.days
 
     def initialize(client: DiscourseClient.new, window: DEFAULT_WINDOW)
       @client = client

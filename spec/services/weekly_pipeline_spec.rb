@@ -12,7 +12,7 @@ RSpec.describe WeeklyPipeline do
   describe WeeklyPipeline::IngestStep do
     it "fetches far enough back to cover the whole week" do
       requested = nil
-      fetcher = instance_double(Ingest::Fetcher, fetch: [])
+      fetcher = instance_double(Ingest::DiscourseFetcher, fetch: [])
       step = described_class.new(fetcher_for: ->(window) { requested = window } >> ->(_) { fetcher })
 
       expect(step.call(week)).to eq("Fetched 0 posts (0 new). 0 posts stored in total.")
@@ -89,7 +89,7 @@ RSpec.describe "WeeklyPipelineJob run twice with real steps" do
   end
 
   before do
-    fetcher = instance_double(Ingest::Fetcher, fetch: fetched_posts)
+    fetcher = instance_double(Ingest::DiscourseFetcher, fetch: fetched_posts)
     ingest = WeeklyPipeline::IngestStep.new(fetcher_for: ->(_window) { fetcher })
     allow(WeeklyPipeline).to receive(:steps).and_return(
       [ ingest, WeeklyPipeline::ChunkStep.new, WeeklyPipeline::EmbedStep.new, WeeklyPipeline::ThemesStep.new,
