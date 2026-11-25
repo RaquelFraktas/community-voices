@@ -1,306 +1,261 @@
 # Community Voices
 
-Generates a weekly "Community Voices Document" for the [Ruby on Rails Discourse forum](https://discuss.rubyonrails.org):
-what the community discussed in the past week, and what it is likely to discuss next.
+Community Voices writes a weekly **Community Voices Document** for the
+[Ruby on Rails forum](https://discuss.rubyonrails.org): what the community discussed in the past week, the themes
+that keep coming up, and what it is likely to discuss next. It writes each week's document twice, once with
+retrieval-augmented generation (RAG) over that week's posts and once without, and shows both side by side with
+metrics, so you can see what retrieval adds.
 
-> Status: **Milestone 4** — posts are ingested, chunked, embedded and grouped into themes with weekly trends.
-> The weekly document is generated twice, with and without retrieved forum context, and compared side by side.
+Everything runs locally and costs nothing: the forum's public JSON API needs no key, and the models run on your
+machine with [Ollama](https://ollama.com).
 
-## Requirements
+## Quickstart
 
-- Ruby 3.4 (see `.ruby-version`)
-- Docker (for Postgres + pgvector)
-- [Ollama](https://ollama.com) (for local embeddings and the chat model)
-
-Everything runs locally and free of charge: the forum's public JSON API needs no key, and both models run on
-your machine.
-
-## Setup
+You need Ruby 3.4 (see `.ruby-version`) and Docker.
 
 ```sh
-docker compose up -d          # Postgres 17 with pgvector on localhost:5432
-bin/setup --skip-server       # installs gems, creates and migrates the databases
+git clone <this repo> community-voices && cd community-voices
+docker compose up -d     # Postgres 17 with pgvector on localhost:5432
+bin/setup                # gems, databases, seeded demo data, then starts the app
 ```
 
-The database connection reads `DB_HOST`, `DB_PORT`, `DB_USERNAME` and `DB_PASSWORD`, defaulting to
-`localhost`, `5432`, `postgres`, `postgres`. If port 5432 is already taken by a local Postgres, pick another
-port for both Docker and Rails:
+Open <http://localhost:3000>. The seeded demo (six weeks of real forum posts with precomputed embeddings, themes
+and reports) works right away, **before Ollama is set up**. You only need Ollama to ingest new posts and write new
+reports.
+
+Next time, start the app with `bin/dev`. It runs the web server and the background job worker together.
+
+**If port 5432 is taken** by a local Postgres, use another port for both Docker and Rails, and check that nothing
+else is listening on it. A local Postgres on the same port answers first, and if it has a `postgres` user, Rails
+connects to it without any error.
 
 ```sh
 export DB_PORT=5434
-docker compose up -d
-bin/setup --skip-server
+lsof -nP -iTCP:5434 -sTCP:LISTEN   # should show only Docker once it is up
+docker compose up -d && bin/setup
 ```
 
-Check that nothing else listens on the port you pick (`lsof -nP -iTCP:5434 -sTCP:LISTEN` should show only
-Docker). A local Postgres on the same port answers `localhost` first, and if it happens to have a `postgres`
-user, Rails connects to it without any error.
+## Ollama setup
 
-Then download the models (about 275 MB and 2 GB, once):
+The app uses two models: `nomic-embed-text` for embeddings and `llama3.2` for writing.
 
-```sh
-ollama pull nomic-embed-text
-ollama pull llama3.2
-```
-
-**Start Ollama with a larger context window.** The RAG prompt is about 5,000 tokens, and Ollama silently cuts
-off prompts longer than its context length instead of reporting an error:
+**Native (recommended on a Mac).** Ollama uses the Apple GPU, which is several times faster than Docker.
 
 ```sh
+brew install ollama            # or download it from https://ollama.com
+ollama pull nomic-embed-text   # about 275 MB
+ollama pull llama3.2           # about 2 GB
 OLLAMA_CONTEXT_LENGTH=8192 ollama serve
 ```
 
-If you use the Ollama desktop app instead, run `launchctl setenv OLLAMA_CONTEXT_LENGTH 8192` and restart the app.
+If you use the Ollama desktop app instead of `ollama serve`, run `launchctl setenv OLLAMA_CONTEXT_LENGTH 8192` and
+restart the app.
 
-The models and server can be changed with `OLLAMA_EMBEDDING_MODEL` (default `nomic-embed-text`),
-`OLLAMA_CHAT_MODEL` (default `llama3.2`) and `OLLAMA_BASE_URL` (default `http://localhost:11434/v1`).
-A different embedding model must also produce 768-dimension vectors, the size of the `chunks.embedding` column.
-
-## Ingesting posts
+**Docker (optional, CPU only on a Mac, slower).**
 
 ```sh
-bin/rails ingest:discourse        # posts from the last 7 days
-bin/rails "ingest:discourse[30]"  # posts from the last 30 days
+docker compose --profile ollama up -d   # starts Ollama and pulls both models into a volume
 ```
 
-Example output:
+Plain `docker compose up -d` still starts only Postgres. If a native Ollama is already using port 11434, set
+`OLLAMA_PORT=11435` and `OLLAMA_BASE_URL=http://localhost:11435/v1`.
 
-```
-Fetched 12 posts (12 new). 12 posts stored in total.
-```
+**Why the context length matters.** The RAG prompt is about 3,600 tokens, and the answer adds about 800 more.
+Depending on its version and your memory, Ollama's default context can be as small as 4,096 tokens, and Ollama
+**silently cuts off** what does not fit instead of reporting an error, so the model would write from part of the
+sources. Both setups above use 8,192 tokens.
 
-Reruns are safe: posts are upserted on `[source, source_id]`, so edits are picked up and nothing is duplicated.
+Check everything with `bin/rails status` or the **Status** page. Any missing piece shows the exact command that
+fixes it.
 
-## Chunking, embedding and search
-
-```sh
-bin/rails chunks:sync                                     # split posts into chunks
-bin/rails embed:pending                                   # embed chunks that have no embedding yet
-bin/rails "pipeline:refresh[7]"                           # ingest the last 7 days, then sync, then embed
-bin/rails "search:similar[upgrading to a new Rails version]"  # print the 5 closest chunks
-```
-
-Example output:
-
-```
-Synced chunks for 47 posts: 3 created, 52 unchanged, 1 replaced, 0 deleted.
-Embedded 4 chunks.
-```
-
-`search:similar` prints each match's cosine distance (0 is identical), post title and the start of the chunk.
-
-Reruns are cheap: a chunk whose content is unchanged keeps its embedding, so only new or edited text is sent
-to Ollama, and syncing unchanged posts writes nothing.
-
-If Ollama is not running or the model is missing, the tasks stop with the command that fixes it.
-
-## Generating and comparing reports
-
-From the terminal:
-
-```sh
-bin/rails reports:generate                 # the most recent complete week
-bin/rails "reports:generate[2026-11-16]"   # the week containing that date
-```
-
-It writes both versions of the document, one after the other, and prints the comparison metrics.
-
-In the browser, start the app with one command:
-
-```sh
-bin/dev
-```
-
-It starts the web server and the background job worker together, then open <http://localhost:3000>. The home
-page lists every week that has posts. **Generate reports** creates both versions as background jobs and opens
-the comparison page, which refreshes itself until both are done. You can also open a comparison directly at
-`/reports/compare?week_of=2026-11-16`.
-
-Weeks run Monday to Sunday. Jobs are stored in their own database (`community_voices_development_queue`,
-created by `bin/setup` or `bin/rails db:prepare`) and run by Solid Queue inside the web server process, so a
-report that was still generating is picked up again after a restart. A report still pending or generating
-after 10 minutes (set `REPORT_GENERATION_TIMEOUT_MINUTES` to change it) is shown as failed with a **Retry**
-button, and the page stops refreshing.
-
-Pressing Ctrl-C prints a `ThreadError ... can't be called from trap context` trace after Solid Queue has
-already shut down cleanly. It comes from Rails' logging during Puma's shutdown and does not affect any jobs.
-
-### Other pages
-
-| Page | What it shows |
+| Setting | Default |
 | --- | --- |
-| `/embeddings?week_of=2026-11-16` | Every chunk of the six weeks as a point on a 2D map, colored by theme, with the report week highlighted. Linked from the comparison page |
-| `/embeddings.json?week_of=2026-11-16` | The data behind the map |
-| `/retrievals/stats` | The chunks, posts and themes that RAG reports retrieve most often |
+| `OLLAMA_BASE_URL` | `http://localhost:11434/v1` |
+| `OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` (must produce 768-dimension vectors) |
+| `OLLAMA_CHAT_MODEL` | `llama3.2` |
+| `RAG_RETRIEVER` | `themes` (or `facets`) |
+| `THEME_LABELER` | `llm` (or `tfidf`) |
+| `REPORT_GENERATION_TIMEOUT_MINUTES` | `10` |
 
-## Building themes
+## Demo walkthrough
 
-```sh
-bin/rails themes:build                 # the six weeks ending with the most recent complete week
-bin/rails "themes:build[2026-11-16]"   # the six weeks ending with that week
+1. **Status** (`/status`). Postgres, pgvector, Ollama and both models, record counts, the latest week ingested,
+   and when the weekly pipeline runs next. Start here before a demo.
+2. **Weeks** (`/`). Every week with posts, and the state of its two reports.
+3. **Comparison for Nov 16 – 22** (`/reports/compare?week_of=2026-11-16`). The headline line ("7 distinct forum
+   posts cited with RAG, 0 without"), the metrics table, and both documents side by side. Citations such as `[3]`
+   link to the forum post they came from. Open **Retrieved context** at the bottom to see the 12 chunks the RAG
+   version was given, each with the theme that found it and its distance.
+4. **Embedding map** (link at the top of the comparison, or `/embeddings?week_of=2026-11-16`). All 88 chunks of
+   the six weeks, colored by theme. Bright points are from the report week, faded ones from earlier weeks, and
+   bigger points have been retrieved more often. Hover for the post title, click to open the post. The legend
+   shows each theme's trend.
+5. **Retrieval stats** (`/retrievals/stats`). The chunks, posts and themes the RAG reports lean on most.
+6. **A new week**, with Ollama running: click **Generate reports** on a week, or run the whole weekly pipeline
+   with `bin/rails pipeline:weekly`. It also runs by itself every Monday at 06:00 UTC while `bin/dev` is up.
+
+## How it maps to the challenge
+
+**1. Collect what the community is saying.** `Ingest::DiscourseFetcher` pages through the forum's public JSON API
+and collects every post in the time window. `Ingest::PostImporter` upserts them, so reruns never duplicate.
+Rake: `ingest:discourse[days]`. The rest of the app only sees the `Ingest::Fetcher` interface, so another source
+plugs in without touching it.
+
+**2. Summarize the past week.** Each document has a Summary, Top discussions and Recurring themes, written by
+`Reports::RagGenerator` from the shared prompt `app/prompts/community_voices.md.erb`. Page: the comparison.
+Rake: `reports:generate[week_of]`.
+
+**3. Predict what comes next.** Posts are grouped into themes (`Themes::Clusterer`, `Themes::LlmLabeler`), and
+`Themes::TrendAnalyzer` marks each theme as new, rising, steady or fading. The RAG prompt gets that trend table
+and must base its Predictions for next week on rising and new themes, citing the evidence. Pages: the embedding
+map and its legend. Rake: `themes:build[week_of]`.
+
+**4. Compare with and without RAG.** Both versions come from the same template, with the same instructions and
+dates. Only the RAG version gets retrieved excerpts and trends. `Reports::ComparisonMetrics` scores them: distinct
+posts cited, valid and invalid citations, real thread titles mentioned, length and time. Page: the comparison.
+
+**5. Handle large amounts of data.** Chunk caps per post, digest-based skipping, batched embedding, capped
+retrieval and a time-windowed vector index keep work proportional to new content. See
+[Decisions and tradeoffs](#decisions-and-tradeoffs).
+
+## Architecture
+
+```mermaid
+flowchart LR
+  D[Discourse forum<br/>public JSON API] --> F[Ingest::DiscourseFetcher]
+  F --> P[(posts)]
+  P --> C[Chunking::PostChunker<br/>+ ChunkSyncer]
+  C --> CH[(chunks)]
+  CH --> E[Embeddings::PendingEmbedder<br/>nomic-embed-text]
+  E --> V[(pgvector<br/>HNSW index)]
+  V --> T[Themes::Builder<br/>k-means, labels, PCA]
+  T --> R[Retrievers<br/>themes or facets]
+  V --> R
+  R --> PR[Prompt template<br/>excerpts + trends]
+  PR --> O[Ollama<br/>llama3.2]
+  O --> RP[(reports +<br/>retrievals)]
+  RP --> UI[Comparison, map, stats]
 ```
 
-It prints each theme's label, size, chunks per week and trend:
+Posts are split into chunks of up to 1,500 characters, each starting with its post's title, and embedded with
+`nomic-embed-text` into a pgvector column with an HNSW index. Each week, the chunks of the six weeks up to it are
+clustered into themes, and each theme gets a trend. The theme retriever gives the prompt the chunks closest to each
+active theme's center, most momentum first, capped at 16. The chat model writes both versions of the document, and
+each retrieved chunk is saved with a snapshot, so a report stays explainable after its posts change.
+`WeeklyPipelineJob` runs all of it every Monday through Solid Queue.
 
-```
-7 themes from 88 chunks, Oct 12 – Nov 22, 2026 (silhouette 0.11, seed 42)
+## A/B findings
 
-Theme                             Size  Weekly (Oct 12 → Nov 16)  Trend
-compound · limitations · objects  2     0 0 0 0 0 2               new
-check · migration · production    24    1 3 7 2 5 6               rising (momentum 1.66)
-ractor · safe · releases          36    9 4 5 8 5 5               steady (momentum 0.76)
-api · association · correlating   8     0 8 0 0 0 0               fading (momentum 0.0)
-```
+From the seeded reports (`llama3.2` on a MacBook, default settings):
 
-You rarely need to run it by hand: `reports:generate` and the **Generate reports** button build the week's
-themes when there are none yet. Set `RAG_RETRIEVER=facets` to go back to Milestone 3's fixed facet queries.
+| Week | Retriever | Distinct posts cited (RAG / baseline) | Citations to nonexistent sources | Real thread titles mentioned |
+| --- | --- | --- | --- | --- |
+| Nov 16 – 22 | themes | 7 / 0 | 0 / 0 | 4 of 8 / 0 of 8 |
+| Nov 9 – 15 | themes | 8 / 0 | 1 / 0 | 5 of 9 / 0 of 9 |
+| Oct 12 – 18 | facets (Milestone 3) | 0 / 0 | 0 / 0 | 3 of 5 / 0 of 5 |
+
+Observations:
+
+- Without retrieval, the model does not know the week happened. Every baseline describes a plausible but generic
+  forum ("best practices for testing and debugging") and invents news: an "upcoming Rails 7.2 release" and a
+  "new `concurrent` feature" in Rails 7.0, while the forum was discussing Rails 8.1. None of the three baselines
+  mentions a single real thread title.
+- With retrieval, the documents name the real threads of the week, and with the theme retriever they cite 7 to 8
+  different posts. Their predictions follow the themes the trend table marks as new or rising.
+- The baselines never cite anything, so the "citations to nonexistent sources" check rarely fires. The one invalid
+  citation came from the RAG side.
+- `llama3.2` (3B parameters) follows citation rules unreliably. It sometimes stacks many citations on one
+  sentence, which is why each run of citations counts for at most three sources, and the October report ignored
+  the rule entirely and cited nothing, although it does name real threads.
+- Retrieval reduces invention but does not remove it: the October RAG report calls Ractor "a new concurrency
+  feature in Rails", though Ractor is part of Ruby.
+- RAG takes about 1.5 times as long, almost all of it reading the longer prompt. Retrieval itself takes under a
+  second.
+
+<!-- YOUR NOTES: add your own observations from the demo here. -->
+**My notes:** _(to be added)_
+
+## Decisions and tradeoffs
+
+**Local Ollama.** It means zero cost and no credentials for a reviewer to set up. The price is quality and
+speed: a 3B model on a laptop is slow and imprecise next to a hosted model. Every model call goes through
+`ruby_llm`, so switching to a hosted provider is a configuration change, not a rewrite.
+
+**Discourse instead of Reddit.** Reddit's API requires approval for new apps, and its unauthenticated JSON
+endpoints were shut down in 2026. The Rails forum's Discourse API is public, stable and polite to use: the client
+identifies itself and pauses between requests.
+
+**Handling large amounts of data.**
+- Filters: posts shorter than 20 characters ("Thanks!", "+1") are not chunked, and hidden (community-flagged) and
+  non-regular posts, such as moderator actions, are skipped. Discourse has no Reddit-style vote scores to filter on.
+- Chunk cap: one post contributes at most 8 chunks, so a huge thread cannot crowd out the rest.
+- Digest-based skipping: a chunk whose SHA256 digest is unchanged keeps its embedding, so a rerun embeds only new
+  or edited text, and re-syncing unchanged posts writes nothing.
+- Batching: embeddings go to Ollama 32 at a time.
+- Retrieval caps: at most 4 chunks per theme or facet and 16 in total, so the prompt fits the context window
+  however much was posted.
+- Vector search uses an HNSW index with pgvector's iterative scan, so time-filtered searches stay fast and still
+  return enough results as the archive grows.
+
+**Theme retrieval over fixed facets.** Milestone 3 searched six hand-written facet queries ("deployment and
+infrastructure", ...). The theme retriever, now the default, lets the data define the topics and brings the trend
+table that predictions need. The facet retriever is still there (`RAG_RETRIEVER=facets`) for comparison.
+
+**Weak clusters.** k is chosen by the best silhouette score for k from 3 to 8, and forum text scores around 0.1,
+which means the themes overlap. They are useful groupings, not sharp categories. A single large catch-all theme is
+common.
+
+## Limitations and future work
+
+- **More sources.** A Reddit fetcher, through a headless browser or an approved API app, would plug in through the
+  existing `Ingest::Fetcher` interface.
+- **A hosted model option.** A larger model would write better and follow citation rules more reliably; with
+  `ruby_llm` this is mostly configuration.
+- **Better theme labels.** The LLM labeler reads only the five most central chunks of each theme, and the 3B model
+  occasionally picks a narrow name for a broad theme.
+- **Ctrl-C noise.** Stopping `bin/dev` prints a `ThreadError ... can't be called from trap context` trace after
+  Solid Queue has already shut down cleanly. It comes from Rails' logging during Puma's shutdown and does not
+  affect jobs.
 
 ## Running the tests
 
 ```sh
 bundle exec rspec
+bin/rubocop
 ```
 
-HTTP is stubbed with WebMock against real API responses saved in `spec/fixtures/discourse/`. No test reaches
-the network or Ollama: the test environment embeds with `Embeddings::FakeClient`, which derives a
-deterministic vector from each text, and writes with `Llm::FakeChatClient`, which returns canned markdown.
-Similarity search still runs against real pgvector.
+No test touches the network or Ollama. HTTP is stubbed with WebMock against real forum responses saved in
+`spec/fixtures/discourse/`. Embeddings come from `Embeddings::FakeClient`, which derives a deterministic vector
+from each text, and writing comes from `Llm::FakeChatClient`. Clustering is tested on synthetic vectors with
+known groups, and similarity search runs against real pgvector.
 
-## How ingestion works
+## Reference
 
-| Class | Responsibility |
+### Rake tasks
+
+| Task | What it does |
 | --- | --- |
-| `Ingest::DiscourseClient` | Thin HTTP wrapper over the forum's JSON API (polite User-Agent, pause between requests) |
-| `Ingest::DiscourseFetcher` | Pages `/latest.json` until topics fall outside the window, then collects each topic's posts |
-| `Ingest::DiscoursePostMapper` | Turns one Discourse post into an `Ingest::FetchedPost` |
-| `Ingest::HtmlToText` | Converts Discourse's rendered HTML into plain text, dropping quoted replies |
-| `Ingest::PostImporter` | Idempotently upserts fetched posts into the `posts` table |
-| `Ingest::Pipeline` | Runs any fetcher through the importer and summarizes the result |
+| `pipeline:weekly[force]` | The weekly run for the last complete week: ingest, chunk, embed, themes, reports. Skips themes and reports that already exist unless `force` |
+| `pipeline:refresh[days]` | Ingest the last N days, then chunk and embed |
+| `ingest:discourse[days]` | Fetch posts from the last N days (default 7) |
+| `chunks:sync` / `embed:pending` | Chunk new and edited posts / embed chunks that have no embedding |
+| `themes:build[week_of]` | Cluster, label and project the six weeks ending with a week, and print the themes |
+| `reports:generate[week_of]` | Write both reports for a week and print the metrics |
+| `search:similar["query"]` | Print the five chunks closest to a query |
+| `seeds:export` | Write the last six weeks of data to `db/seeds/community_voices.json.gz` |
+| `status` | Check the services and print fixes |
 
-Every source implements the `Ingest::Fetcher` interface (`#fetch` returns `Ingest::FetchedPost` values), so
-new sources can be added without touching the importer or the pipeline.
+### Code map
 
-Each Discourse post (opening post or reply) becomes one `Post` row, carrying its topic's title.
-Hidden (community-flagged) posts and non-regular posts such as moderator actions are skipped.
-
-## How chunking, embedding and search work
-
-| Class | Responsibility |
+| Area | Main classes |
 | --- | --- |
-| `Chunking::TextSplitter` | Packs paragraphs into pieces of a maximum length with a small overlap, hard-splitting oversized paragraphs at word boundaries |
-| `Chunking::PostChunker` | Turns a post into chunk texts: title prefix, minimum content length, and a cap on chunks per post |
-| `Chunking::ChunkSyncer` | Stores a post's chunks, keeping unchanged ones (same SHA256 digest) and their embeddings; a changed chunk is replaced by a new row |
-| `Embeddings::OllamaClient` | Embeds documents in batches and queries one at a time through `ruby_llm`, adding nomic's task prefixes |
-| `Embeddings::FakeClient` | Deterministic, offline embeddings for the test suite |
-| `Embeddings::PendingEmbedder` | Embeds every chunk without an embedding, in batches of 32 |
-| `Search::SimilarChunks` | Returns the chunks nearest to a query by cosine distance, optionally only from posts within a time window |
+| Ingestion | `Ingest::DiscourseClient`, `DiscourseFetcher`, `DiscoursePostMapper`, `HtmlToText`, `PostImporter`, `Pipeline` |
+| Chunks and search | `Chunking::TextSplitter`, `PostChunker`, `ChunkSyncer`; `Embeddings::OllamaClient`, `PendingEmbedder`; `Search::SimilarChunks` |
+| Themes | `Themes::KMeansSelector`, `Clusterer`, `LlmLabeler` (falls back to `Labeler`), `Projector`, `TrendAnalyzer`, `Builder` |
+| Reports | `Reports::ThemeContextRetriever`, `ContextRetriever`, `PromptBuilder`, `RagGenerator`, `BaselineGenerator`, `ComparisonMetrics` |
+| Automation | `WeeklyPipelineJob` and the `WeeklyPipeline::*Step` classes; `config/recurring.yml` |
+| Pages | `Reports::Comparison`, `Reports::MarkdownRenderer`, `Themes::EmbeddingMapSerializer`, `RetrievalStatsQuery`, `Status::Overview` |
+| Seed data | `Seeds::Exporter`, `Seeds::Importer` |
 
-Each chunk starts with its post's title, so it makes sense on its own when retrieved. Chunks hold at most 1,500
-characters and overlap the previous chunk by up to 150. Posts under 20 characters ("Thanks!", "+1") are skipped.
-
-**Handling overly large amounts of data:** `PostChunker::MAX_CHUNKS_PER_POST` (8) caps how many chunks one post
-can contribute, so a single huge post cannot crowd everything else out of search results. Embedding runs in
-batches and only touches pending chunks, so cost grows with new content rather than with the size of the database.
-
-`Embeddings.client` is the one place that picks the implementation: `FakeClient` in tests, `OllamaClient`
-everywhere else. Both implement the `Embeddings::Client` interface (`#embed_documents`, `#embed_query`).
-Chunks are searched through an HNSW index with `vector_cosine_ops`.
-Searches run with `hnsw.iterative_scan = relaxed_order` (pgvector 0.8+). Without it, HNSW finds its nearest
-candidates first and drops unwanted ones afterwards, both rows outside a time filter and deleted rows not yet
-vacuumed, so a search can come back with fewer matches than asked for, or none.
-
-## How the A/B comparison works
-
-Each week's document is written twice by the same chat model, from the same prompt template
-(`app/prompts/community_voices.md.erb`), with the same week dates and instructions:
-
-- **RAG** gets numbered excerpts from that week's forum posts and a table of theme trends, and must cite the
-  excerpts as `[n]`.
-- **Baseline** gets neither, so it can only draw on what the model already knows.
-
-Retrieved data is the only difference, so differences between the two documents come from retrieval.
-
-By default, `Reports::ThemeContextRetriever` builds the RAG context from the week's themes (see below): for
-each theme with posts that week, the chunks closest to the theme's center, taking the themes with the most
-momentum first. It interleaves the themes by rank, removes duplicates, and keeps at most 16 chunks so the
-prompt fits the context window. `Reports::ContextRetriever` (`RAG_RETRIEVER=facets`) instead runs six fixed
-facet queries ("new releases and upgrades", "deployment and infrastructure", ...). Every chunk used is stored
-as a `Retrieval` with a snapshot of its content, title and URL, so a report stays explainable after the chunk
-is edited or deleted.
-
-The comparison page shows these metrics above the two documents:
-
-| Metric | What it tells you |
-| --- | --- |
-| Valid citations | `[n]` that point at a real context entry |
-| Invalid citations | `[n]` with no matching entry. Every citation in the baseline is invalid, because it was given no sources |
-| Distinct posts cited | How many different forum posts the valid citations cover |
-| Post titles mentioned | How many of the week's real thread titles appear in the text (fuzzy match within one line) |
-| Words, generation time | Length and cost of each version |
-
-Citations in the RAG document link to their source posts. Invalid citations are struck through in red. The
-**Retrieved context** panel lists each retrieved chunk with the theme (or facet) that found it and its cosine
-distance.
-
-A large valid-citation count is not always a good sign: a model that ends a sentence with every source
-(`[1][2]…[12]`) scores twelve valid citations for one claim. Read the count together with distinct posts cited.
-
-| Class | Responsibility |
-| --- | --- |
-| `Llm::OllamaChatClient` / `Llm::FakeChatClient` | Chat completions through `ruby_llm`; `Llm.client` picks one |
-| `Reports::Retriever` | The retriever interface: interleaves, de-duplicates, caps and numbers candidates; `RAG_RETRIEVER` picks the implementation |
-| `Reports::ThemeContextRetriever` | Builds the RAG context from the week's themes, ordered by momentum, with their trend table |
-| `Reports::ContextRetriever` | Builds the RAG context from fixed facet queries |
-| `Reports::PromptBuilder` | Renders the shared prompt template |
-| `Reports::RagGenerator` / `Reports::BaselineGenerator` | Write one report; the shared flow lives in `Reports::Generator` |
-| `GenerateReportJob` | Runs a generator in the background |
-| `Reports::ComparisonMetrics` | Computes the comparison metrics (plain Ruby) |
-| `Reports::Comparison` | The latest RAG and baseline reports for a week, with their retrievals and metrics |
-| `Reports::MarkdownRenderer` | Renders a report as safe HTML with linked citations |
-
-## How themes and predictions work
-
-**Clustering.** Every embedded chunk from the six weeks ending with the report week is a point in a
-768-dimension space, where chunks about similar things sit close together. K-means splits those points into
-*k* groups (themes) by repeatedly assigning each point to its nearest group center and moving each center to
-the middle of its points.
-
-**Choosing k.** The clusterer tries every k from 3 to 8 and keeps the one with the best *silhouette score*,
-which measures how much closer each chunk is to its own theme than to the next nearest one (1 is perfectly
-separated, 0 is overlapping). A fixed random seed (42) means the same data always gives the same themes.
-Forum text overlaps a lot, so expect low scores, around 0.1: the themes are useful groupings, not sharp
-categories.
-
-**Labels.** Each theme is named by the three words that best set its post titles apart from all titles in the
-window (TF-IDF), ignoring stop words and words every Rails thread uses, such as "rails", "ruby" and "using".
-No language model is involved.
-
-**The map.** PCA (principal component analysis) flattens the 768 dimensions to the two directions in which the
-chunks differ most, which gives the x and y of each point on the embedding map. Distances on the map are
-approximate: two dimensions cannot keep all 768 apart.
-
-**Momentum and trends.** For each theme, count its chunks per week. Its *share* of a week is its chunks divided
-by all chunks that week. *Momentum* is this week's share divided by the theme's average share in the earlier
-weeks (weeks with no chunks at all, such as weeks before ingestion started, are left out). Then:
-
-| Trend | Rule |
-| --- | --- |
-| new | No chunks in earlier weeks, some this week |
-| rising | Momentum of 1.5 or more |
-| fading | Momentum of 0.67 or less, or no chunks this week |
-| steady | Anything else |
-
-**Predictions.** Both versions are told to base their predictions on rising and new themes. Only the RAG version
-gets the trend table and the excerpts behind it, and must cite them, so its predictions point at real threads
-that are growing. The baseline has to guess.
-
-| Class | Responsibility |
-| --- | --- |
-| `Themes::KMeansSelector` | Runs k-means for each k and keeps the best silhouette score (plain Numo math) |
-| `Themes::Clusterer` | Clusters a window's chunks and saves the `Clustering`, its `Cluster`s and memberships |
-| `Themes::Labeler` | Names clusters by their most distinctive title words (plain Ruby) |
-| `Themes::Projector` | Stores each chunk's 2D position from PCA |
-| `Themes::Builder` | Runs the three steps above for a week |
-| `Themes::TrendAnalyzer` | Weekly counts, momentum and trend for each cluster (plain Ruby) |
-| `Themes::EmbeddingMapSerializer` | The JSON behind the embedding map |
-| `RetrievalStatsQuery` | The queries behind the retrieval stats page |
+Interfaces with two implementations each pick theirs in one place: `Embeddings.client`, `Llm.client`,
+`Themes.labeler` and `Reports::Retriever.configured`. Tests always get the fake or offline one.

@@ -1,10 +1,18 @@
+<% headline, *details = metrics.rows %>
+<p class="headline-metric">
+  <strong><%= headline.rag %></strong> distinct forum posts cited with RAG, <strong><%= headline.baseline %></strong>
+  without.
+</p>
+
 <table class="metrics">
   <thead>
     <tr><th>Metric</th><th><%= variant_title(:rag) %></th><th><%= variant_title(:baseline) %></th></tr>
   </thead>
   <tbody>
-    <% metrics.rows.each do |row| %>
+    <tr class="metrics__headline"><td><%= headline.label %></td><td><%= headline.rag %></td><td><%= headline.baseline %></td></tr>
+    <% details.each do |row| %>
       <tr><td><%= row.label %></td><td><%= row.rag %></td><td><%= row.baseline %></td></tr>
     <% end %>
   </tbody>
 </table>
+<p class="note">Each run of adjacent citations such as [1][2][3][4] counts for at most <%= Reports::ComparisonMetrics::MAX_CITATIONS_PER_GROUP %> sources.</p>

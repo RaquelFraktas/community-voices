@@ -43,7 +43,8 @@ How many excerpts each theme had per week, from <%= trend_weeks.first %> to <%= 
 
 <%- end -%>
 Citation rule: end every sentence and every bullet with the numbers of the excerpts it is based on, in square
-brackets, for example [2] or [1][4]. Each prediction must cite the excerpts that show its theme growing.
+brackets, for example [2] or [1][4]. Cite at most <%= max_citations %> excerpts per sentence, and only ones that
+directly support it. Each prediction must cite the excerpts that show its theme growing.
 Only use numbers from 1 to <%= entries.size %>.
 <%- else -%>
 ## Sources

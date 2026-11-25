@@ -48,6 +48,12 @@ RSpec.describe Reports::PromptBuilder do
     expect(rag_prompt.user).to include("Citation rule", "[1][4]", "Each prediction must cite the excerpts")
   end
 
+  it "limits the RAG variant to three directly supporting citations per sentence, matching the metrics" do
+    expect(Reports::ComparisonMetrics::MAX_CITATIONS_PER_GROUP).to eq(3)
+    expect(rag_prompt.user).to include("Cite at most 3 excerpts per sentence, and only ones that\ndirectly support it.")
+    expect(baseline_prompt.user).not_to include("Cite at most")
+  end
+
   it "lists each theme's weekly counts and trend for the RAG variant, after the sources and before the citation rule" do
     user = rag_prompt.user
 

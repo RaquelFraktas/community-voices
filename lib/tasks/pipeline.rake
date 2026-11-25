@@ -5,4 +5,12 @@ namespace :pipeline do
     Rake::Task["chunks:sync"].invoke
     Rake::Task["embed:pending"].invoke
   end
+
+  desc "Run the weekly pipeline now for the last complete week; pass force to rebuild themes and regenerate reports"
+  task :weekly, [ :force ] => :environment do |_task, args|
+    force = args[:force].to_s == "force"
+    puts WeeklyPipelineJob.perform_now(force: force)
+  rescue WeeklyPipelineJob::StepFailed => error
+    abort error.message
+  end
 end

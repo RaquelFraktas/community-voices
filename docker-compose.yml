@@ -14,5 +14,35 @@ services:
       timeout: 5s
       retries: 15
 
+  # Optional, CPU-only on a Mac: docker compose --profile ollama up -d
+  # Native Ollama (https://ollama.com) is much faster on Apple silicon because it uses the GPU.
+  ollama:
+    image: ollama/ollama:0.40.18
+    profiles: ["ollama"]
+    environment:
+      OLLAMA_CONTEXT_LENGTH: "8192"
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # Pulls both models into the ollama volume once Ollama is healthy, then exits.
+  ollama-models:
+    image: ollama/ollama:0.40.18
+    profiles: ["ollama"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c", "ollama pull nomic-embed-text && ollama pull llama3.2"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
 volumes:
   pgdata:
+  ollama:

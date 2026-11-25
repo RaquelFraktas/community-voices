@@ -4,6 +4,10 @@ module Reports
   class ComparisonMetrics
     VARIANTS = %i[rag baseline].freeze
     CITATION = /\[(\d+(?:\s*,\s*\d+)*)\]/
+    CITATION_GROUP = /#{CITATION}(?:[ \t]*,?[ \t]*#{CITATION})*/
+    # A sentence ending in [1][2]…[12] cites everything and supports nothing, so each run of adjacent
+    # citations counts for at most this many sources. The prompt asks for the same limit.
+    MAX_CITATIONS_PER_GROUP = 3
     WORD = /[[:alnum:]]+(?:['’.][[:alnum:]]+)*/
     WORD_ENDING = /(?:ing|ed|es|s)\z/
     MIN_STEMMABLE_LENGTH = 5
@@ -24,10 +28,10 @@ module Reports
 
     def rows
       [
+        row("Distinct posts cited") { |variant| distinct_posts_cited(variant).size },
         Row.new("Context entries", @sources[:rag].size, @sources[:baseline].size),
         row("Valid citations") { |variant| valid_citations(variant).size },
         row("Invalid citations") { |variant| invalid_citations(variant).size },
-        row("Distinct posts cited") { |variant| distinct_posts_cited(variant).size },
         row("Post titles mentioned (of #{@post_titles.size})") { |variant| titles_mentioned(variant).size },
         row("Words") { |variant| word_count(variant) },
         row("Generation time (s)") { |variant| generation_seconds(variant) }
@@ -35,7 +39,11 @@ module Reports
     end
 
     def citations(variant)
-      body(variant).scan(CITATION).flat_map { |(numbers)| numbers.split(",").map(&:to_i) }
+      citation_groups(variant).flat_map { |group| group.first(MAX_CITATIONS_PER_GROUP) }
+    end
+
+    def citation_groups(variant)
+      body(variant).to_enum(:scan, CITATION_GROUP).map { Regexp.last_match[0].scan(/\d+/).map(&:to_i).uniq }
     end
 
     def valid_citations(variant)

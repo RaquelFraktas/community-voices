@@ -15,9 +15,9 @@ module Themes
       app apps application applications issue issues problem problems question questions rails ruby rubyonrails
     ].to_set.freeze
 
-    def label(titles_by_cluster, all_titles:)
+    def label(descriptions, all_titles:)
       weights = inverse_document_frequencies(all_titles)
-      titles_by_cluster.transform_values { |titles| label_for(titles, weights) }
+      descriptions.transform_values { |description| label_for(description.titles, weights) }
     end
 
     def terms(title)

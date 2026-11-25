@@ -27,6 +27,24 @@ RSpec.describe "rake reports:generate" do
     ))
 
     expect(Report.where(week_of: week.starts_on).map(&:status)).to all(eq("complete"))
+  end
+
+  it "prints distinct posts cited as the first metric" do
+    printed = nil
+    expect { printed = capture_stdout { Rake::Task["reports:generate"].invoke("2026-11-16") } }.not_to raise_error
+
+    header, _separator, first_row = printed.lines.drop_while { |line| !line.start_with?("Metric") }
+    expect(header).to start_with("Metric")
+    expect(first_row).to start_with("Distinct posts cited")
+  end
+
+  def capture_stdout
+    original = $stdout
+    $stdout = StringIO.new
+    yield
+    $stdout.string
+  ensure
+    $stdout = original
     expect(Report.find_by!(variant: :rag).retrievals.map(&:chunk)).to all(be_in(week_chunks))
   end
 

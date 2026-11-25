@@ -124,3 +124,22 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .stats td:nth-child(n+3), .stats th:nth-child(n+3) { text-align: right; font-variant-numeric: tabular-nums; }
 .stats .snippet { color: var(--muted); font-size: 0.875rem; }
+
+.headline-metric { font-size: 1.15rem; margin: 1rem 0 0; }
+.headline-metric strong { font-size: 1.6rem; color: var(--accent); }
+.metrics__headline td { font-weight: 700; }
+
+.site-nav {
+  display: flex;
+  gap: 1.25rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.site-nav a { text-decoration: none; }
+.site-nav__home { font-weight: 700; color: var(--text); margin-right: auto; }
+
+.status td:first-child { white-space: nowrap; }
+.status code { white-space: nowrap; }

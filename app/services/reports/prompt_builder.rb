@@ -11,7 +11,8 @@ module Reports
     end
 
     def build(week:, entries:, trends: [])
-      user = template.result_with_hash(week: week, entries: entries, trends: trends, trend_weeks: trend_weeks(trends))
+      user = template.result_with_hash(week: week, entries: entries, trends: trends, trend_weeks: trend_weeks(trends),
+                                       max_citations: ComparisonMetrics::MAX_CITATIONS_PER_GROUP)
       Prompt.new(system: SYSTEM_PROMPT, user: user)
     end
 

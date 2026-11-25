@@ -1,0 +1,44 @@
+<% content_for :title, "Status" %>
+
+<header class="page-header">
+  <h1>Status</h1>
+  <p class="note">Pre-demo checklist. The seeded pages work without Ollama; generating new reports needs it.</p>
+</header>
+
+<table class="status">
+  <thead><tr><th>Check</th><th></th><th>Details</th><th>Fix</th></tr></thead>
+  <tbody>
+    <% @overview.checks.each do |check| %>
+      <tr>
+        <td><%= check.name %></td>
+        <td><span class="badge badge--<%= check.ok? ? "complete" : "failed" %>"><%= check.ok? ? "ok" : "missing" %></span></td>
+        <td><%= check.detail %></td>
+        <td><% if check.fix %><code><%= check.fix %></code><% end %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+
+<h2>Data</h2>
+<table class="status">
+  <tbody>
+    <% @overview.record_counts.each do |label, count| %>
+      <tr><td><%= label %></td><td><%= number_with_delimiter(count) %></td></tr>
+    <% end %>
+    <tr>
+      <td>Latest week ingested</td>
+      <td><%= @overview.latest_week_ingested&.label || "none yet" %></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Weekly pipeline</h2>
+<% if (next_run = @overview.next_pipeline_run) %>
+  <p>
+    Next run: <strong><%= l(next_run, format: :long) %> UTC</strong>
+    <span class="note">(<%= @overview.schedule_description %>, run by Solid Queue inside <code>bin/dev</code>)</span>
+  </p>
+<% else %>
+  <p class="note">Not scheduled in this environment.</p>
+<% end %>
+<p class="note">Run it now with <code>bin/rails pipeline:weekly</code>.</p>

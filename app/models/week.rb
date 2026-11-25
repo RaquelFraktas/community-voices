@@ -20,6 +20,10 @@ Week = Data.define(:starts_on) do
     with_posts.find(&:complete?) || with_posts.first
   end
 
+  def self.last_complete(today = Date.current)
+    containing(today - 7.days)
+  end
+
   def initialize(starts_on:)
     super(starts_on: starts_on.to_date.beginning_of_week)
   end

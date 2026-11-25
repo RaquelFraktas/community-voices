@@ -1,9 +1,9 @@
-# This file should ensure the existence of records required to run the application in every environment (production,
-# development, test). The code here should be idempotent so that it can be executed at any point in every environment.
-# The data can then be loaded with the bin/rails db:seed command (or created alongside the database with db:setup).
-#
-# Example:
-#
-#   ["Action", "Comedy", "Drama", "Horror"].each do |genre_name|
-#     MovieGenre.find_or_create_by!(name: genre_name)
-#   end
+# Loads a snapshot of real forum data with precomputed embeddings, themes and reports, so every page works
+# right after setup without Ollama or the network. Safe to run again: records are matched on natural keys.
+# Regenerate the snapshot from your own data with: bin/rails seeds:export
+
+if Seeds::DEFAULT_PATH.exist?
+  puts Seeds::Importer.new.import(Seeds::DEFAULT_PATH)
+else
+  puts "No seed snapshot at #{Seeds::DEFAULT_PATH.relative_path_from(Rails.root)}; skipping."
+end

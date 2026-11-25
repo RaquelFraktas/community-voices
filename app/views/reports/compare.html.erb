@@ -9,8 +9,7 @@
 <header class="page-header">
   <p class="page-links">
     <%= link_to "← All weeks", root_path %>
-    <%= link_to "Embedding map", embeddings_path(week_of: @comparison.week) %>
-    <%= link_to "Retrieval stats", retrieval_stats_path %>
+    <%= link_to "Embedding map for this week", embeddings_path(week_of: @comparison.week) %>
   </p>
   <h1>Community Voices: <%= @comparison.week.label %></h1>
   <% if @comparison.in_progress? %>

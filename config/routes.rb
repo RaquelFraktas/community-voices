@@ -12,4 +12,5 @@ Rails.application.routes.draw do
 
   resource :embeddings, only: :show
   get "retrievals/stats", to: "retrieval_stats#show", as: :retrieval_stats
+  resource :status, only: :show
 end

@@ -12,7 +12,7 @@ module Themes
     def cluster(week)
       window = window_for(week)
       chunks = embedded_chunks_in(window)
-      vectors = chunks.map { |chunk| unit_length(chunk.embedding) }
+      vectors = chunks.map { |chunk| UnitVectors.unit_length(chunk.embedding) }
       result = @selector.select(vectors)
       save(window, chunks, vectors, result)
     end
@@ -50,11 +50,6 @@ module Themes
       members.each do |chunk, vector|
         cluster.memberships.create!(chunk: chunk, distance_to_centroid: cosine_distance(vector, centroid))
       end
-    end
-
-    def unit_length(vector)
-      length = Math.sqrt(vector.sum { |value| value * value })
-      vector.map { |value| value / length }
     end
 
     def cosine_distance(unit_vector, centroid)

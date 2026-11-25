@@ -24,6 +24,12 @@
   </head>
 
   <body>
+    <nav class="site-nav">
+      <%= link_to "Community Voices", root_path, class: "site-nav__home" %>
+      <%= link_to "Weeks", root_path %>
+      <%= link_to "Retrieval stats", retrieval_stats_path %>
+      <%= link_to "Status", status_path %>
+    </nav>
     <%= yield %>
   </body>
 </html>

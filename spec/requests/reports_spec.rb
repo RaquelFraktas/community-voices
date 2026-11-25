@@ -63,6 +63,15 @@ RSpec.describe "Reports", type: :request do
         expect(body.scan("<h2>Summary</h2>").size).to eq(2)
       end
 
+      it "leads with distinct posts cited as the headline metric" do
+        get compare_reports_path(week_of: "2026-11-16")
+
+        body = response.body
+        expect(body).to include("<strong>1</strong> distinct forum posts cited with RAG, <strong>0</strong>")
+        expect(body.index("Distinct posts cited")).to be < body.index("Context entries")
+        expect(body).to include('class="metrics__headline"')
+      end
+
       it "links the RAG report's citations to their source posts and flags the rest" do
         get compare_reports_path(week_of: "2026-11-16")
 

@@ -69,6 +69,52 @@ RSpec.describe Reports::ComparisonMetrics do
     end
   end
 
+  describe "the citation-group cap" do
+    let(:twelve_sources) do
+      Array.new(12) { |i| retrieval_double.new(i + 1, "https://forum.test/t/#{i + 1}", "Topic #{i + 1}") }
+    end
+    let(:capped) { described_class.new(rag: rag, baseline: baseline, retrievals: twelve_sources, post_titles: []) }
+
+    it "counts a run of citations such as [1]…[12] as citing at most three sources" do
+      rag.body = "Everything happened #{(1..12).map { |n| "[#{n}]" }.join}."
+
+      expect(capped.citation_groups(:rag)).to eq([ (1..12).to_a ])
+      expect(capped.citations(:rag)).to eq([ 1, 2, 3 ])
+      expect(capped.distinct_posts_cited(:rag).size).to eq(3)
+    end
+
+    it "caps comma lists, and runs separated by commas or spaces, the same way" do
+      rag.body = "One [1, 2, 3, 4, 5]. Two [6], [7], [8], [9]. Three [10] [11] [12] [1]."
+
+      expect(capped.citation_groups(:rag)).to eq([ [ 1, 2, 3, 4, 5 ], [ 6, 7, 8, 9 ], [ 10, 11, 12, 1 ] ])
+      expect(capped.citations(:rag)).to eq([ 1, 2, 3, 6, 7, 8, 10, 11, 12 ])
+    end
+
+    it "treats citations in separate sentences as separate groups" do
+      rag.body = "First claim [1][2][3]. Second claim [4][5][6]."
+
+      expect(capped.citations(:rag)).to eq([ 1, 2, 3, 4, 5, 6 ])
+    end
+
+    it "counts a number repeated within one group once" do
+      rag.body = "Repeated [2][2][2][5]."
+
+      expect(capped.citations(:rag)).to eq([ 2, 5 ])
+    end
+
+    it "keeps counting groups of three or fewer in full" do
+      rag.body = "Small [4][9]."
+
+      expect(capped.citations(:rag)).to eq([ 4, 9 ])
+    end
+
+    it "caps invalid citations too" do
+      rag.body = "Made up [40][41][42][43][44]."
+
+      expect(capped.invalid_citations(:rag)).to eq([ 40, 41, 42 ])
+    end
+  end
+
   describe "#titles_mentioned" do
     it "finds titles quoted exactly, ignoring case and punctuation" do
       rag.body = "The thread \"upgrading to rails 8.1!\" got the most replies."
@@ -131,12 +177,12 @@ RSpec.describe Reports::ComparisonMetrics do
     let(:rag_body) { "## Summary\nUpgrading to Rails 8.1 dominated [1][3][9]." }
     let(:baseline_body) { "## Summary\nPeople upgraded [1]." }
 
-    it "lays out every metric for both variants" do
+    it "lays out every metric for both variants, distinct posts cited first" do
       expect(metrics.rows.map { |row| [ row.label, row.rag, row.baseline ] }).to eq([
+        [ "Distinct posts cited", 2, 0 ],
         [ "Context entries", 3, 0 ],
         [ "Valid citations", 2, 0 ],
         [ "Invalid citations", 1, 1 ],
-        [ "Distinct posts cited", 2, 0 ],
         [ "Post titles mentioned (of 3)", 1, 0 ],
         [ "Words", 6, 3 ],
         [ "Generation time (s)", 41.3, 12.0 ]
