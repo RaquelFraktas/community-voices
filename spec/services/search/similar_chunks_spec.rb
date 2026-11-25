@@ -56,6 +56,50 @@ RSpec.describe Search::SimilarChunks do
     expect(search.call("old", since: 7.days.ago).map(&:chunk)).to eq([ recent ])
   end
 
+  it "only considers posts published before the given time" do
+    create_embedded_chunk("recent", posted_at: 2.days.ago)
+    old = create_embedded_chunk("old", posted_at: 10.days.ago)
+
+    expect(search.call("recent", before: 7.days.ago).map(&:chunk)).to eq([ old ])
+  end
+
+  context "when many closer chunks fall outside the time window" do
+    let(:target_week) { 3.weeks.ago.beginning_of_week..3.weeks.ago.end_of_week }
+    let(:query) { "rails upgrade" }
+
+    before do
+      create_weeks_of_chunks(weeks: 6, near_query_per_week: 12)
+      plan_like_a_large_table
+    end
+
+    # On a table this small Postgres would filter by date and sort exactly. With many weeks ingested it
+    # walks the HNSW index instead, which is the path that needs the iterative scan.
+    def plan_like_a_large_table
+      Chunk.connection.execute("SET LOCAL enable_seqscan = off")
+      Chunk.connection.execute("SET LOCAL enable_sort = off")
+      Chunk.connection.execute("SET LOCAL hnsw.ef_search = 10")
+    end
+
+    def create_weeks_of_chunks(weeks:, near_query_per_week:)
+      weeks.times do |weeks_ago|
+        posted_at = weeks_ago.weeks.ago.beginning_of_week + 1.day
+        in_target = target_week.cover?(posted_at)
+        near_query_per_week.times do |i|
+          chunk = create_embedded_chunk("week #{weeks_ago} chunk #{i}", posted_at: posted_at)
+          chunk.update!(embedding: blend(query, "week #{weeks_ago} chunk #{i}", in_target ? 0.3 : 0.9))
+        end
+      end
+    end
+
+    it "still returns the requested number of matches, all from the window" do
+      matches = search.call(query, limit: 8, since: target_week.begin, before: target_week.end)
+
+      expect(matches.size).to eq(8)
+      expect(matches.map { |match| match.post.posted_at }).to all(be_between(target_week.begin, target_week.end))
+      expect(matches.map(&:distance)).to eq(matches.map(&:distance).sort)
+    end
+  end
+
   it "skips chunks that are not embedded yet" do
     create_embedded_chunk("pending", embedded: false)
 

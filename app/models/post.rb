@@ -5,4 +5,5 @@ class Post < ApplicationRecord
   validates :source_id, uniqueness: { scope: :source }
 
   scope :posted_since, ->(time) { where(posted_at: time..) }
+  scope :posted_between, ->(since, before) { where(posted_at: since...before) }
 end

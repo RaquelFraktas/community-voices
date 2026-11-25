@@ -1,0 +1,40 @@
+Write this week's Community Voices Document for the Ruby on Rails community forum (discuss.rubyonrails.org).
+
+Week: <%= week.label %> (<%= week.starts_on.iso8601 %> to <%= week.ends_on.iso8601 %>)
+
+## Instructions
+
+Write the document in Markdown with exactly these four sections, in this order:
+
+## Summary
+Two or three sentences on what the community talked about this week.
+
+## Top discussions this past week
+A bulleted list of the most important discussions. Name each discussion's topic and say why it matters.
+
+## Recurring themes
+A bulleted list of themes that came up in more than one discussion.
+
+## Predictions for next week
+A bulleted list of three predictions about what the community will discuss next week. Give the reasoning
+behind each prediction.
+
+Be specific and factual. Do not invent discussions, releases, people, or numbers.
+
+<%- if entries.any? -%>
+## Sources
+
+Base the document only on these numbered forum excerpts:
+
+<%- entries.each do |entry| -%>
+[<%= entry.number %>] "<%= entry.post_title %>" (posted <%= entry.posted_at.to_date.iso8601 %>, <%= entry.url %>)
+<%= entry.content %>
+
+<%- end -%>
+Citation rule: end every sentence and every bullet with the numbers of the excerpts it is based on, in square
+brackets, for example [2] or [1][4]. Only use numbers from 1 to <%= entries.size %>.
+<%- else -%>
+## Sources
+
+No forum excerpts are provided. Write from what you know about the Rails community.
+<%- end -%>

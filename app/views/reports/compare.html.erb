@@ -1,0 +1,33 @@
+<% content_for :title, "Community Voices – #{@comparison.week.label}" %>
+<% if @comparison.in_progress? %>
+  <% content_for :head do %>
+    <meta name="turbo-visit-control" content="reload">
+    <meta http-equiv="refresh" content="5">
+  <% end %>
+<% end %>
+
+<header class="page-header">
+  <p><%= link_to "← All weeks", root_path %></p>
+  <h1>Community Voices: <%= @comparison.week.label %></h1>
+  <% if @comparison.in_progress? %>
+    <p class="note">Generating… this page refreshes every 5 seconds.</p>
+  <% end %>
+</header>
+
+<% if !@comparison.requested? %>
+  <p class="empty">No reports for this week yet.</p>
+  <%= button_to "Generate reports", reports_path(week_of: @comparison.week), form: { data: { turbo: false } } %>
+<% else %>
+  <% if (metrics = @comparison.metrics) %>
+    <%= render "metrics", metrics: metrics %>
+  <% end %>
+
+  <div class="comparison">
+    <%= render "report", report: @comparison.rag, variant: :rag, citation_urls: @comparison.citation_urls %>
+    <%= render "report", report: @comparison.baseline, variant: :baseline, citation_urls: {} %>
+  </div>
+
+  <% if @comparison.retrievals.any? %>
+    <%= render "retrieved_context", retrievals: @comparison.retrievals %>
+  <% end %>
+<% end %>

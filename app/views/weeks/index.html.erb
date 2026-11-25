@@ -1,0 +1,37 @@
+<% content_for :title, "Community Voices" %>
+
+<header class="page-header">
+  <h1>Community Voices</h1>
+  <p>Weekly documents for discuss.rubyonrails.org, written with and without retrieved forum context.</p>
+</header>
+
+<% if @comparisons.empty? %>
+  <p class="empty">No posts yet. Run <code>bin/rails "pipeline:refresh[7]"</code> to ingest the last week.</p>
+<% else %>
+  <table class="weeks">
+    <thead>
+      <tr><th>Week</th><th>Posts</th><th>RAG</th><th>Baseline</th><th></th></tr>
+    </thead>
+    <tbody>
+      <% @comparisons.each do |comparison| %>
+        <% week = comparison.week %>
+        <tr>
+          <td>
+            <%= week.label %>
+            <% unless week.complete? %><span class="note">in progress</span><% end %>
+          </td>
+          <td><%= @post_counts[week] %></td>
+          <td><%= report_status_badge(comparison.rag) %></td>
+          <td><%= report_status_badge(comparison.baseline) %></td>
+          <td class="actions">
+            <% if comparison.requested? %>
+              <%= link_to "View comparison", compare_reports_path(week_of: week) %>
+            <% end %>
+            <%= button_to "Generate reports", reports_path(week_of: week), disabled: comparison.in_progress?,
+                          form: { data: { turbo: false } } %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>

@@ -77,15 +77,27 @@ RSpec.describe Chunking::ChunkSyncer do
       edit_body(edited_body)
     end
 
-    it "replaces only the changed chunk and clears its embedding" do
+    it "replaces the changed chunk with a new, unembedded row" do
+      original_ids = post.chunks.map(&:id)
+
       tally = syncer.sync(post)
 
-      changed = post.chunks.reload.find_by!(position: 1)
-      expect(changed.content).to include("edited")
-      expect(changed.content_digest).to eq(Chunk.digest(changed.content))
-      expect(changed.embedding).to be_nil
-      expect(changed.retrievals_count).to eq(0)
+      replacement = post.chunks.reload.find_by!(position: 1)
+      expect(original_ids).not_to include(replacement.id)
+      expect(Chunk.exists?(original_ids[1])).to be(false)
+      expect(replacement.content).to include("edited")
+      expect(replacement.content_digest).to eq(Chunk.digest(replacement.content))
+      expect(replacement.embedding).to be_nil
+      expect(replacement.retrievals_count).to eq(0)
       expect(tally).to have_attributes(unchanged: 2, replaced: 1)
+    end
+
+    it "keeps the rows, embeddings and retrieval counts of the unchanged chunks" do
+      unchanged_before = post.chunks.reject { |chunk| chunk.position == 1 }.map(&:attributes)
+
+      syncer.sync(post)
+
+      expect(post.chunks.reload.reject { |chunk| chunk.position == 1 }.map(&:attributes)).to eq(unchanged_before)
     end
 
     it "keeps the embeddings of the unchanged chunks" do

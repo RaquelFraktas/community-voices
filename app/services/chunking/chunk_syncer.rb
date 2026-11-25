@@ -30,17 +30,22 @@ module Chunking
       return create_chunk(post, position, text, digest) if chunk.nil?
       return SyncTally.new(unchanged: 1) if chunk.content_digest == digest
 
-      replace_content(chunk, text, digest)
+      replace_chunk(chunk, text, digest)
     end
 
     def create_chunk(post, position, text, digest)
-      post.chunks.create!(position: position, content: text, content_digest: digest)
+      insert_chunk(post, position, text, digest)
       SyncTally.new(created: 1)
     end
 
-    def replace_content(chunk, text, digest)
-      chunk.update!(content: text, content_digest: digest, embedding: nil, retrievals_count: 0)
+    def replace_chunk(chunk, text, digest)
+      chunk.delete
+      insert_chunk(chunk.post, chunk.position, text, digest)
       SyncTally.new(replaced: 1)
+    end
+
+    def insert_chunk(post, position, text, digest)
+      post.chunks.create!(position: position, content: text, content_digest: digest)
     end
 
     def delete_beyond(chunk_count, chunks)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_24_215334) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_223526) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "vector"
@@ -43,5 +43,37 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_24_215334) do
     t.index ["source", "source_id"], name: "index_posts_on_source_and_source_id", unique: true
   end
 
+  create_table "reports", force: :cascade do |t|
+    t.date "week_of", null: false
+    t.string "variant", null: false
+    t.string "status", default: "pending", null: false
+    t.string "llm_model"
+    t.text "prompt"
+    t.text "body"
+    t.text "error_message"
+    t.float "generation_seconds"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["week_of", "variant", "created_at"], name: "index_reports_on_week_of_and_variant_and_created_at"
+  end
+
+  create_table "retrievals", force: :cascade do |t|
+    t.bigint "report_id", null: false
+    t.bigint "chunk_id"
+    t.text "content_snapshot", null: false
+    t.string "post_title_snapshot", null: false
+    t.string "post_url_snapshot", null: false
+    t.string "query_label", null: false
+    t.integer "rank", null: false
+    t.float "distance", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chunk_id"], name: "index_retrievals_on_chunk_id"
+    t.index ["report_id", "rank"], name: "index_retrievals_on_report_id_and_rank", unique: true
+    t.index ["report_id"], name: "index_retrievals_on_report_id"
+  end
+
   add_foreign_key "chunks", "posts", on_delete: :cascade
+  add_foreign_key "retrievals", "chunks", on_delete: :nullify
+  add_foreign_key "retrievals", "reports", on_delete: :cascade
 end

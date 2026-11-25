@@ -1,0 +1,18 @@
+<section class="report report--<%= variant %>">
+  <header>
+    <h2><%= variant_title(variant) %></h2>
+    <p>
+      <%= report_status_badge(report) %>
+      <% if report&.llm_model %><span class="note"><%= report.llm_model %></span><% end %>
+      <% if report&.generation_seconds %><span class="note"><%= report.generation_seconds.round(1) %> s</span><% end %>
+    </p>
+  </header>
+
+  <% if report&.complete? %>
+    <div class="markdown"><%= report_body_html(report, citation_urls) %></div>
+  <% elsif report&.failed? %>
+    <p class="error"><%= report.error_message %></p>
+  <% elsif report %>
+    <p class="note">Waiting for the model…</p>
+  <% end %>
+</section>

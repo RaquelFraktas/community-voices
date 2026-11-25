@@ -1,0 +1,14 @@
+<details class="retrieved-context">
+  <summary>Retrieved context (<%= retrievals.size %> chunks)</summary>
+  <ol>
+    <% retrievals.each do |retrieval| %>
+      <li id="source-<%= retrieval.rank %>" value="<%= retrieval.rank %>">
+        <p>
+          <%= link_to retrieval.post_title_snapshot, retrieval.post_url_snapshot, target: "_blank", rel: "noopener" %>
+          <span class="note"><%= retrieval.query_label %> · distance <%= number_with_precision(retrieval.distance, precision: 3) %></span>
+        </p>
+        <pre><%= retrieval.content_snapshot %></pre>
+      </li>
+    <% end %>
+  </ol>
+</details>

@@ -1,0 +1,10 @@
+<table class="metrics">
+  <thead>
+    <tr><th>Metric</th><th><%= variant_title(:rag) %></th><th><%= variant_title(:baseline) %></th></tr>
+  </thead>
+  <tbody>
+    <% metrics.rows.each do |row| %>
+      <tr><td><%= row.label %></td><td><%= row.rag %></td><td><%= row.baseline %></td></tr>
+    <% end %>
+  </tbody>
+</table>

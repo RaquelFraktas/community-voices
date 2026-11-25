@@ -43,6 +43,7 @@ gem "image_processing", "~> 1.2"
 gem "faraday"
 gem "neighbor"
 gem "nokogiri"
+gem "redcarpet", "~> 3.6"
 gem "ruby_llm"
 
 group :development, :test do
