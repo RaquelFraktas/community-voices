@@ -9,6 +9,17 @@ RSpec.describe Reports::MarkdownRenderer do
     expect(html).to include("<h2>Summary</h2>", "<li><strong>Busy</strong> week</li>")
   end
 
+  it "leaves out anything the model wrote before the first section" do
+    html = renderer.render("## Community Voices Document\nWeek: Nov 9 – Nov 15, 2026\n\n## Summary\nBusy week.")
+
+    expect(html).not_to include("Community Voices Document", "Week:")
+    expect(html).to include("<h2>Summary</h2>", "Busy week.")
+  end
+
+  it "keeps the whole answer when it has no Summary section" do
+    expect(renderer.render("Week: Nov 9\n\nNo sections here.")).to include("Week: Nov 9", "No sections here.")
+  end
+
   it "escapes HTML written by the model" do
     html = renderer.render("Hello <script>alert(1)</script> <a href=\"javascript:x\">x</a>")
 

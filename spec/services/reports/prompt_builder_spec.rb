@@ -32,6 +32,12 @@ RSpec.describe Reports::PromptBuilder do
     )
   end
 
+  it "tells both variants to start with the Summary instead of repeating the title" do
+    [ rag_prompt, baseline_prompt ].each do |prompt|
+      expect(prompt.user).to include("Start your answer directly with \"## Summary\". Do not repeat the title or the week.")
+    end
+  end
+
   it "includes the week's dates" do
     expect(rag_prompt.user).to include("Nov 16 – Nov 22, 2026", "2026-11-16 to 2026-11-22")
   end
