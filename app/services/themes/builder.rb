@@ -1,12 +1,16 @@
 module Themes
-  # Builds a week's themes: clusters the window's chunks, names the clusters, and lays them out in 2D.
+  # Builds a week's themes: clusters the window's chunks, gives them TF-IDF labels and lays them out in 2D in
+  # one transaction, then asks the configured labeler for better names. Labeling runs after the commit, so a
+  # slow model never holds the transaction open and a labeling failure keeps the TF-IDF labels.
   class Builder
     EXAMPLES_PER_CLUSTER = 5
     SNIPPET_LENGTH = 200
 
-    def initialize(clusterer: Clusterer.new, labeler: Themes.labeler, projector: Projector.new)
+    def initialize(clusterer: Clusterer.new, labeler: Themes.labeler, fallback_labeler: Labeler.new,
+                   projector: Projector.new)
       @clusterer = clusterer
       @labeler = labeler
+      @fallback_labeler = fallback_labeler
       @projector = projector
     end
 
@@ -15,21 +19,36 @@ module Themes
     end
 
     def build(week)
-      Clustering.transaction do
-        clustering = @clusterer.cluster(week)
-        label(clustering)
-        @projector.project(clustering)
-      end
+      clustering, descriptions = persist(week)
+      relabel(descriptions)
+      clustering
     end
 
     private
 
-    def label(clustering)
-      descriptions = clustering.clusters.includes(memberships: { chunk: :post }).to_h do |cluster|
-        [ cluster, describe(cluster) ]
+    def persist(week)
+      Clustering.transaction do
+        clustering = @clusterer.cluster(week)
+        descriptions = describe_clusters(clustering)
+        apply_labels(@fallback_labeler, descriptions)
+        @projector.project(clustering)
+        [ clustering, descriptions ]
       end
-      @labeler.label(descriptions, all_titles: descriptions.values.flat_map(&:titles))
-              .each { |cluster, label| cluster.update!(label: label) }
+    end
+
+    def relabel(descriptions)
+      apply_labels(@labeler, descriptions)
+    rescue StandardError => error
+      Rails.logger.warn("[Themes] Labeling failed, keeping TF-IDF labels: #{error.class}: #{error.message}")
+    end
+
+    def apply_labels(labeler, descriptions)
+      labeler.label(descriptions, all_titles: descriptions.values.flat_map(&:titles))
+             .each { |cluster, label| cluster.update!(label: label) }
+    end
+
+    def describe_clusters(clustering)
+      clustering.clusters.includes(memberships: { chunk: :post }).to_h { |cluster| [ cluster, describe(cluster) ] }
     end
 
     def describe(cluster)
