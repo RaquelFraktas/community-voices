@@ -54,15 +54,6 @@ OLLAMA_CONTEXT_LENGTH=8192 ollama serve
 If you use the Ollama desktop app instead of `ollama serve`, run `launchctl setenv OLLAMA_CONTEXT_LENGTH 8192` and
 restart the app.
 
-**Docker (optional, CPU only on a Mac, slower).**
-
-```sh
-docker compose --profile ollama up -d   # starts Ollama and pulls both models into a volume
-```
-
-Plain `docker compose up -d` still starts only Postgres. If a native Ollama is already using port 11434, set
-`OLLAMA_PORT=11435` and `OLLAMA_BASE_URL=http://localhost:11435/v1`.
-
 **Why the context length matters.** The RAG prompt is about 3,600 tokens, and the answer adds about 800 more.
 Depending on its version and your memory, Ollama's default context can be as small as 4,096 tokens, and Ollama
 **silently cuts off** what does not fit instead of reporting an error, so the model would write from part of the
