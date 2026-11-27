@@ -105,6 +105,16 @@ RSpec.describe Reports::Generator do
       expect(chunk.reload.retrievals_count).to eq(1)
     end
 
+    it "replaces the retrievals of an earlier run when the same report is generated again" do
+      report = new_report(:rag)
+      generator.generate(report)
+      generator.generate(report)
+
+      expect(report.reload).to be_complete
+      expect(report.retrievals.pluck(:rank)).to eq([ 1 ])
+      expect(chunk.reload.retrievals_count).to eq(1)
+    end
+
     context "with the theme retriever" do
       let(:retriever) { Reports::ThemeContextRetriever.new }
 

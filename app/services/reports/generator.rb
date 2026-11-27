@@ -40,6 +40,7 @@ module Reports
 
     def complete(report, body, context, seconds)
       Report.transaction(requires_new: true) do
+        Retrieval.where(report: report).destroy_all
         Retrieval.create!(context.retrieval_attributes.map { |attributes| attributes.merge(report_id: report.id) })
         report.update!(status: :complete, body: body, generation_seconds: seconds, clustering: context.clustering)
       end
